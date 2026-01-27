@@ -47,6 +47,7 @@ import HighlightOffRoundedIcon from '@mui/icons-material/HighlightOffRounded';
 import AppsTableContent from './AppsTableContent';
 import ApplicationTableHead from './ApplicationTableHead';
 import DeleteConfirmation from './DeleteConfirmation';
+import DiscoverDialog from './DiscoverDialog';
 
 /**
  * @inheritdoc
@@ -70,6 +71,7 @@ class Listing extends Component {
             isDeleteOpen: false,
             totalApps: 0,
             query: '',
+            isDiscoverDialogOpen: false,
         };
         this.handleAppDelete = this.handleAppDelete.bind(this);
         this.setQuery = this.setQuery.bind(this);
@@ -200,6 +202,14 @@ class Listing extends Component {
     };
 
     /**
+     * Toggle Discover Dialog open/close
+     * @memberof Listing
+     */
+    toggleDiscoverDialog = () => {
+        this.setState(({ isDiscoverDialogOpen }) => ({ isDiscoverDialogOpen: !isDiscoverDialogOpen }));
+    };
+
+    /**
      * @memberof Listing
      */
      filterApps = () => {
@@ -287,7 +297,7 @@ class Listing extends Component {
     render() {
         const {
             data, order, orderBy, rowsPerPage, page, isApplicationSharingEnabled,
-            isDeleteOpen, totalApps, query,
+            isDeleteOpen, totalApps, query, isDiscoverDialogOpen,
         } = this.state;
         const { intl } = this.props;
         const paginationEnabled = totalApps > Listing.rowsPerPage;
@@ -330,8 +340,25 @@ class Listing extends Component {
                             </Typography>
                             <Box sx={(theme) => ({
                                 paddingLeft: theme.spacing(2),
+                                display: 'flex',
+                                gap: theme.spacing(1),
                             })}
                             >
+                                <ScopeValidation
+                                    resourcePath={resourcePaths.APPLICATIONS}
+                                    resourceMethod={resourceMethods.POST}
+                                >
+                                    <Button
+                                        variant='outlined'
+                                        color='primary'
+                                        onClick={this.toggleDiscoverDialog}
+                                    >
+                                        <FormattedMessage
+                                            id='Applications.Listing.Listing.discover.application'
+                                            defaultMessage='Discover Application'
+                                        />
+                                    </Button>
+                                </ScopeValidation>
                                 <ScopeValidation
                                     resourcePath={resourcePaths.APPLICATIONS}
                                     resourceMethod={resourceMethods.POST}
@@ -599,6 +626,11 @@ class Listing extends Component {
                                 handleAppDelete={this.handleAppDelete}
                                 isDeleteOpen={isDeleteOpen}
                                 toggleDeleteConfirmation={this.toggleDeleteConfirmation}
+                            />
+                            <DiscoverDialog
+                                open={isDiscoverDialogOpen}
+                                onClose={this.toggleDiscoverDialog}
+                                history={this.props.history}
                             />
                         </Box>
                     )}

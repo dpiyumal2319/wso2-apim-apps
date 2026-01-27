@@ -480,7 +480,7 @@ function Overview(props) {
 
                     </TableBody>
                 </Table>
-                {}
+                { }
                 {application.containsSolaceApis === true && environment && topics && (
                     <div className={classes.root}>
                         <Typography id='itest-api-details-bushiness-plans-head' variant='h5'>
@@ -506,6 +506,7 @@ function Overview(props) {
                                                 value={environment.environmentDisplayName}
                                                 style={{ maxWidth: '100%' }}
                                                 variant='outlined'
+                                                margin='normal'
                                                 label='Environment Name'
                                             >
                                                 {application.solaceDeployedEnvironments.map((e) => (
@@ -522,6 +523,7 @@ function Overview(props) {
                                                 value={selectedProtocol}
                                                 style={{ maxWidth: '100%' }}
                                                 variant='outlined'
+                                                margin='normal'
                                                 label='Protocol'
                                             >
                                                 {environment.solaceURLs.map((e) => (
@@ -544,6 +546,7 @@ function Overview(props) {
                                                 label='Endpoint URL'
                                                 value={selectedEndpoint}
                                                 variant='outlined'
+                                                margin='normal'
                                             />
                                         </Grid>
                                     </Grid>

@@ -35,6 +35,7 @@ const TagCloudListing = lazy(() => import('AppComponents/Apis/Listing/TagCloudLi
 const ChangePassword = lazy(() => import('AppComponents/Settings/ChangePassword/ChangePassword'));
 const Listing = lazy(() => import('AppComponents/Applications/Listing/Listing' /* webpackChunkName: "ApiListing" */));
 const Details = lazy(() => import('AppComponents/Applications/Details/index' /* webpackChunkName: "ApplicationDetails" */));
+const DiscoveredApplicationInfo = lazy(() => import('AppComponents/Applications/Details/DiscoveredApplicationInfo' /* webpackChunkName: "DiscoveredApplicationInfo" */));
 
 /**
  * Handle redirection
@@ -131,6 +132,18 @@ function AppRouts(props) {
                     render={(localProps) => {
                         if (isAuthenticated) {
                             return <ApplicationFormHandler {...localProps} />;
+                        } else if (isUserFound) {
+                            return <ScopeNotFound {...localProps} />;
+                        } else {
+                            return <RedirectToLogin {...localProps} />;
+                        }
+                    }}
+                />
+                <Route
+                    path='/applications/discover/:environmentId/:applicationId'
+                    render={(localProps) => {
+                        if (isAuthenticated) {
+                            return <DiscoveredApplicationInfo {...localProps} />;
                         } else if (isUserFound) {
                             return <ScopeNotFound {...localProps} />;
                         } else {
