@@ -18,14 +18,13 @@
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { withRouter } from 'react-router-dom';
+import { withRouter, Link } from 'react-router-dom';
 import { injectIntl, FormattedMessage } from 'react-intl';
+import { styled } from '@mui/material/styles';
 import {
-    Paper,
     Typography,
     Box,
     Grid,
-    Divider,
     Button,
     CircularProgress,
     Table,
@@ -34,11 +33,78 @@ import {
     TableHead,
     TableRow,
     Chip,
+    Icon,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    IconButton,
+    Paper,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import InfoIcon from '@mui/icons-material/Info';
+import CloseIcon from '@mui/icons-material/Close';
 import Alert from 'AppComponents/Shared/Alert';
+import VerticalDivider from 'AppComponents/Shared/VerticalDivider';
+import CustomIcon from 'AppComponents/Shared/CustomIcon';
 import DiscoveredApplication from 'AppData/DiscoveredApplication';
+
+const PREFIX = 'DiscoveredApplicationInfo';
+
+const classes = {
+    root: `${PREFIX}-root`,
+    table: `${PREFIX}-table`,
+    leftCol: `${PREFIX}-leftCol`,
+    iconAligner: `${PREFIX}-iconAligner`,
+    iconTextWrapper: `${PREFIX}-iconTextWrapper`,
+    iconEven: `${PREFIX}-iconEven`,
+    iconOdd: `${PREFIX}-iconOdd`,
+    heading: `${PREFIX}-heading`,
+    Paper: `${PREFIX}-Paper`,
+};
+
+const Root = styled('div')(({ theme }) => ({
+    width: '100%',
+    [`& .${classes.root}`]: {
+        padding: theme.spacing(3, 2),
+        '& td, & th': {
+            color: theme.palette.getContrastText(theme.custom.infoBar.background),
+        },
+        background: theme.custom.infoBar.background,
+    },
+    [`& .${classes.table}`]: {
+        minWidth: '100%',
+    },
+    [`& .${classes.leftCol}`]: {
+        width: 200,
+    },
+    [`& .${classes.iconAligner}`]: {
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+    },
+    [`& .${classes.iconTextWrapper}`]: {
+        display: 'inline-block',
+        paddingLeft: 20,
+    },
+    [`& .${classes.iconEven}`]: {
+        color: theme.custom.infoBar.iconOddColor,
+        width: theme.spacing(3),
+    },
+    [`& .${classes.iconOdd}`]: {
+        color: theme.custom.infoBar.iconOddColor,
+        width: theme.spacing(3),
+    },
+    [`& .${classes.heading}`]: {
+        color: theme.palette.getContrastText(theme.palette.background.paper),
+        paddingLeft: theme.spacing(1),
+    },
+    [`& .${classes.Paper}`]: {
+        marginTop: theme.spacing(2),
+        padding: theme.spacing(2),
+    },
+}));
 
 /**
  * Component to display detailed information about a discovered application
@@ -50,6 +116,7 @@ class DiscoveredApplicationInfo extends Component {
             application: null,
             loading: true,
             importing: false,
+            referenceDialogOpen: false,
         };
     }
 
@@ -136,6 +203,91 @@ class DiscoveredApplicationInfo extends Component {
         history.goBack();
     };
 
+    /**
+     * Toggle reference artifact dialog
+     */
+    toggleReferenceDialog = () => {
+        this.setState((prevState) => ({
+            referenceDialogOpen: !prevState.referenceDialogOpen,
+        }));
+    };
+
+    /**
+     * Parse reference artifact for display
+     */
+    parseReferenceArtifact = () => {
+        const { application } = this.state;
+        if (!application || !application.referenceArtifact) {
+            return null;
+        }
+        try {
+            return JSON.parse(application.referenceArtifact);
+        } catch (e) {
+            return { rawData: application.referenceArtifact };
+        }
+    };
+
+    /**
+     * Render the reference artifact dialog
+     */
+    renderReferenceDialog = () => {
+        const { referenceDialogOpen } = this.state;
+        const referenceData = this.parseReferenceArtifact();
+
+        if (!referenceData) return null;
+
+        return (
+            <Dialog
+                open={referenceDialogOpen}
+                onClose={this.toggleReferenceDialog}
+                maxWidth='md'
+                fullWidth
+            >
+                <DialogTitle>
+                    <Box display='flex' justifyContent='space-between' alignItems='center'>
+                        <FormattedMessage
+                            id='Applications.Details.DiscoveredApplicationInfo.reference.artifact'
+                            defaultMessage='Gateway-Specific Details'
+                        />
+                        <IconButton onClick={this.toggleReferenceDialog} size='small'>
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Table size='small'>
+                        <TableBody>
+                            {Object.entries(referenceData).map(([key, value]) => (
+                                <TableRow key={key}>
+                                    <TableCell
+                                        component='th'
+                                        scope='row'
+                                        sx={{ fontWeight: 'bold', width: '30%' }}
+                                    >
+                                        {key}
+                                    </TableCell>
+                                    <TableCell>
+                                        {typeof value === 'object'
+                                            ? JSON.stringify(value, null, 2)
+                                            : String(value)}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={this.toggleReferenceDialog}>
+                        <FormattedMessage
+                            id='Applications.Details.DiscoveredApplicationInfo.close'
+                            defaultMessage='Close'
+                        />
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    };
+
     render() {
         const { application, loading, importing } = this.state;
         const { intl } = this.props;
@@ -161,382 +313,375 @@ class DiscoveredApplicationInfo extends Component {
             );
         }
 
+        const hasReferenceArtifact = application.referenceArtifact
+            && application.referenceArtifact.length > 0;
+
         return (
-            <Box sx={{ flexGrow: 1 }}>
-                {/* Header Section */}
-                <Box sx={(theme) => ({
-                    minHeight: 80,
-                    background: theme.custom.infoBar.background,
-                    color: theme.palette.getContrastText(theme.custom.infoBar.background),
-                    borderBottom: `solid 1px ${theme.palette.grey.A200}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    px: 3,
-                    py: 2,
-                })}
-                >
-                    <Box display='flex' alignItems='center'>
-                        <Button
-                            startIcon={<ArrowBackIcon />}
-                            onClick={this.handleBack}
-                            sx={{ mr: 2 }}
-                            color='inherit'
-                        >
-                            <FormattedMessage
-                                id='Applications.Details.DiscoveredApplicationInfo.back'
-                                defaultMessage='Back'
-                            />
-                        </Button>
-                        <Box>
-                            <Typography variant='h4' component='h1'>
-                                {application.name}
-                            </Typography>
-                            <Typography variant='caption'>
-                                <FormattedMessage
-                                    id='Applications.Details.DiscoveredApplicationInfo.subtitle'
-                                    defaultMessage='Discovered Application'
-                                />
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Button
-                        variant='contained'
-                        color='primary'
-                        startIcon={<CloudDownloadIcon />}
-                        onClick={this.handleImport}
-                        disabled={importing || application.alreadyImported}
+            <Root>
+                {/* Info Bar - matches existing application InfoBar */}
+                <Box sx={{ width: '100%' }}>
+                    <Box sx={(theme) => ({
+                        height: theme.custom.infoBar.height || 70,
+                        background: theme.custom.infoBar.background || '#ffffff',
+                        color: theme.palette.getContrastText(theme.custom.infoBar.background || '#ffffff'),
+                        borderBottom: `solid 1px ${theme.palette.grey.A200}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        paddingLeft: theme.spacing(2),
+                    })}
                     >
-                        {importing && <CircularProgress size={20} color='inherit' />}
-                        {!importing && application.alreadyImported && (
-                            <FormattedMessage
-                                id='Applications.Details.DiscoveredApplicationInfo.already.imported'
-                                defaultMessage='Already Imported'
-                            />
-                        )}
-                        {!importing && !application.alreadyImported && (
-                            <FormattedMessage
-                                id='Applications.Details.DiscoveredApplicationInfo.import'
-                                defaultMessage='Import Application'
-                            />
-                        )}
-                    </Button>
+                        <Grid container alignItems='center'>
+                            <Grid item xs={8}>
+                                <Box display='flex' alignItems='center'>
+                                    <Link to='/applications'>
+                                        <CustomIcon width={42} height={42} icon='applications' />
+                                    </Link>
+                                    <Box sx={(theme) => ({ marginLeft: theme.spacing(1) })}>
+                                        <Typography
+                                            id='itest-info-bar-application-name'
+                                            variant='h4'
+                                            noWrap
+                                        >
+                                            {application.name}
+                                        </Typography>
+                                        <Typography variant='caption' gutterBottom align='left' noWrap>
+                                            <FormattedMessage
+                                                id='Applications.Details.DiscoveredApplicationInfo.discovered.app'
+                                                defaultMessage='Discovered Application'
+                                            />
+                                            {application.alreadyImported && (
+                                                <Chip
+                                                    label={intl.formatMessage({
+                                                        defaultMessage: 'Imported',
+                                                        id: 'Applications.Details.DiscoveredApplicationInfo.imported.chip',
+                                                    })}
+                                                    size='small'
+                                                    color='success'
+                                                    sx={{ ml: 1 }}
+                                                />
+                                            )}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Grid>
+                            <Grid item xs={4}>
+                                <Grid container justifyContent='flex-end' alignItems='center'>
+                                    <VerticalDivider height={70} />
+                                    <Grid item sx={{ mx: 1 }}>
+                                        <Button
+                                            onClick={this.handleBack}
+                                            color='grey'
+                                            sx={{
+                                                padding: '4px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                            }}
+                                        >
+                                            <ArrowBackIcon />
+                                            <Typography variant='caption' sx={{ mt: '2px' }}>
+                                                <FormattedMessage
+                                                    id='Applications.Details.DiscoveredApplicationInfo.back'
+                                                    defaultMessage='Back'
+                                                />
+                                            </Typography>
+                                        </Button>
+                                    </Grid>
+                                    <VerticalDivider height={70} />
+                                    <Grid item sx={{ mx: 1 }}>
+                                        <Button
+                                            onClick={this.handleImport}
+                                            disabled={importing || application.alreadyImported}
+                                            color='grey'
+                                            sx={{
+                                                padding: '4px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                opacity: application.alreadyImported ? 0.5 : 1,
+                                            }}
+                                        >
+                                            {importing ? (
+                                                <CircularProgress size={20} />
+                                            ) : (
+                                                <CloudDownloadIcon />
+                                            )}
+                                            <Typography variant='caption' sx={{ mt: '2px' }}>
+                                                {application.alreadyImported ? (
+                                                    <FormattedMessage
+                                                        id='Applications.Details.DiscoveredApplicationInfo.already.imported'
+                                                        defaultMessage='Imported'
+                                                    />
+                                                ) : (
+                                                    <FormattedMessage
+                                                        id='Applications.Details.DiscoveredApplicationInfo.import'
+                                                        defaultMessage='Import'
+                                                    />
+                                                )}
+                                            </Typography>
+                                        </Button>
+                                    </Grid>
+                                    {hasReferenceArtifact && (
+                                        <>
+                                            <VerticalDivider height={70} />
+                                            <Grid item sx={{ mx: 1, mr: 2 }}>
+                                                <Button
+                                                    onClick={this.toggleReferenceDialog}
+                                                    color='grey'
+                                                    sx={{
+                                                        padding: '4px',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                    }}
+                                                >
+                                                    <InfoIcon />
+                                                    <Typography variant='caption' sx={{ mt: '2px' }}>
+                                                        <FormattedMessage
+                                                            id='Applications.Details.DiscoveredApplicationInfo.more.info'
+                                                            defaultMessage='More Info'
+                                                        />
+                                                    </Typography>
+                                                </Button>
+                                            </Grid>
+                                        </>
+                                    )}
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Box>
                 </Box>
 
-                {/* Content Section */}
-                <Box p={4}>
-                    <Grid container spacing={3}>
-                        {/* Basic Information Card */}
-                        <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 3, height: '100%' }}>
-                                <Typography variant='h6' gutterBottom>
-                                    <FormattedMessage
-                                        id='Applications.Details.DiscoveredApplicationInfo.basic.info'
-                                        defaultMessage='Basic Information'
-                                    />
-                                </Typography>
-                                <Divider sx={{ mb: 2 }} />
+                {/* Overview Section - matches existing Overview component style */}
+                <div className={classes.root}>
+                    <Table className={classes.table}>
+                        <TableBody>
+                            {application.description && (
+                                <TableRow>
+                                    <TableCell component='th' scope='row' className={classes.leftCol}>
+                                        <div className={classes.iconAligner}>
+                                            <Icon className={classes.iconEven}>description</Icon>
+                                            <span className={classes.iconTextWrapper}>
+                                                <Typography variant='caption' gutterBottom align='left'>
+                                                    <FormattedMessage
+                                                        id='Applications.Details.DiscoveredApplicationInfo.description'
+                                                        defaultMessage='Description'
+                                                    />
+                                                </Typography>
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{application.description}</TableCell>
+                                </TableRow>
+                            )}
+                            <TableRow>
+                                <TableCell component='th' scope='row' className={classes.leftCol}>
+                                    <div className={classes.iconAligner}>
+                                        <Icon className={classes.iconOdd}>settings_input_component</Icon>
+                                        <span className={classes.iconTextWrapper}>
+                                            <Typography variant='caption' gutterBottom align='left'>
+                                                <FormattedMessage
+                                                    id='Applications.Details.DiscoveredApplicationInfo.tier'
+                                                    defaultMessage='Throttling Tier'
+                                                />
+                                            </Typography>
+                                        </span>
+                                    </div>
+                                </TableCell>
+                                <TableCell>{application.tier || 'Unlimited'}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell component='th' scope='row' className={classes.leftCol}>
+                                    <div className={classes.iconAligner}>
+                                        <Icon className={classes.iconEven}>person</Icon>
+                                        <span className={classes.iconTextWrapper}>
+                                            <Typography variant='caption' gutterBottom align='left'>
+                                                <FormattedMessage
+                                                    id='Applications.Details.DiscoveredApplicationInfo.owner'
+                                                    defaultMessage='Owner'
+                                                />
+                                            </Typography>
+                                        </span>
+                                    </div>
+                                </TableCell>
+                                <TableCell>{application.owner || '-'}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell component='th' scope='row' className={classes.leftCol}>
+                                    <div className={classes.iconAligner}>
+                                        <Icon className={classes.iconOdd}>fingerprint</Icon>
+                                        <span className={classes.iconTextWrapper}>
+                                            <Typography variant='caption' gutterBottom align='left'>
+                                                <FormattedMessage
+                                                    id='Applications.Details.DiscoveredApplicationInfo.external.id'
+                                                    defaultMessage='External ID'
+                                                />
+                                            </Typography>
+                                        </span>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <code>{application.externalId}</code>
+                                </TableCell>
+                            </TableRow>
+                            {application.createdTime && (
+                                <TableRow>
+                                    <TableCell component='th' scope='row' className={classes.leftCol}>
+                                        <div className={classes.iconAligner}>
+                                            <Icon className={classes.iconEven}>schedule</Icon>
+                                            <span className={classes.iconTextWrapper}>
+                                                <Typography variant='caption' gutterBottom align='left'>
+                                                    <FormattedMessage
+                                                        id='Applications.Details.DiscoveredApplicationInfo.created.time'
+                                                        defaultMessage='Created Time'
+                                                    />
+                                                </Typography>
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        {new Date(application.createdTime).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
-                                <Box mb={2}>
-                                    <Typography variant='subtitle2' color='textSecondary'>
+                {/* Application Keys Section */}
+                {application.keyInfoList && application.keyInfoList.length > 0 && (
+                    <Paper className={classes.Paper} sx={{ mx: 2 }}>
+                        <Typography variant='h6' className={classes.heading} gutterBottom>
+                            <FormattedMessage
+                                id='Applications.Details.DiscoveredApplicationInfo.keys'
+                                defaultMessage='Application Keys'
+                            />
+                        </Typography>
+                        <Table size='small'>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>
                                         <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.external.id'
-                                            defaultMessage='External ID'
+                                            id='Applications.Details.DiscoveredApplicationInfo.key.type'
+                                            defaultMessage='Key Type'
                                         />
-                                    </Typography>
-                                    <Typography variant='body1'>
-                                        {application.externalId}
-                                    </Typography>
-                                </Box>
-
-                                <Box mb={2}>
-                                    <Typography variant='subtitle2' color='textSecondary'>
+                                    </TableCell>
+                                    <TableCell>
                                         <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.name'
-                                            defaultMessage='Application Name'
+                                            id='Applications.Details.DiscoveredApplicationInfo.key.name'
+                                            defaultMessage='Key Name'
                                         />
-                                    </Typography>
-                                    <Typography variant='body1'>
-                                        {application.name}
-                                    </Typography>
-                                </Box>
-
-                                <Box mb={2}>
-                                    <Typography variant='subtitle2' color='textSecondary'>
+                                    </TableCell>
+                                    <TableCell>
                                         <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.owner'
-                                            defaultMessage='Owner'
+                                            id='Applications.Details.DiscoveredApplicationInfo.key.value'
+                                            defaultMessage='Masked Key'
                                         />
-                                    </Typography>
-                                    <Typography variant='body1'>
-                                        {application.owner || '-'}
-                                    </Typography>
-                                </Box>
-
-                                <Box mb={2}>
-                                    <Typography variant='subtitle2' color='textSecondary'>
+                                    </TableCell>
+                                    <TableCell>
                                         <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.tier'
-                                            defaultMessage='Throttling Tier'
+                                            id='Applications.Details.DiscoveredApplicationInfo.key.state'
+                                            defaultMessage='State'
                                         />
-                                    </Typography>
-                                    <Typography variant='body1'>
-                                        {application.tier || 'Unlimited'}
-                                    </Typography>
-                                </Box>
-
-                                {application.description && (
-                                    <Box mb={2}>
-                                        <Typography variant='subtitle2' color='textSecondary'>
-                                            <FormattedMessage
-                                                id='Applications.Details.DiscoveredApplicationInfo.description'
-                                                defaultMessage='Description'
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {application.keyInfoList.map((key) => (
+                                    <TableRow key={`${key.keyType}-${key.keyName || 'default'}`}>
+                                        <TableCell>{key.keyType}</TableCell>
+                                        <TableCell>{key.keyName || '-'}</TableCell>
+                                        <TableCell>
+                                            <code>{key.maskedKeyValue || '***'}</code>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={key.state || 'ACTIVE'}
+                                                size='small'
+                                                color={key.state === 'ACTIVE' ? 'success' : 'default'}
                                             />
-                                        </Typography>
-                                        <Typography variant='body1'>
-                                            {application.description}
-                                        </Typography>
-                                    </Box>
-                                )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Paper>
+                )}
 
-                                {application.createdTime && (
-                                    <Box>
-                                        <Typography variant='subtitle2' color='textSecondary'>
-                                            <FormattedMessage
-                                                id='Applications.Details.DiscoveredApplicationInfo.created.time'
-                                                defaultMessage='Created Time'
-                                            />
-                                        </Typography>
-                                        <Typography variant='body1'>
-                                            {new Date(application.createdTime).toLocaleString()}
-                                        </Typography>
-                                    </Box>
-                                )}
-                            </Paper>
-                        </Grid>
-
-                        {/* Import Status Card */}
-                        <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 3, height: '100%' }}>
-                                <Typography variant='h6' gutterBottom>
-                                    <FormattedMessage
-                                        id='Applications.Details.DiscoveredApplicationInfo.import.status'
-                                        defaultMessage='Import Status'
-                                    />
-                                </Typography>
-                                <Divider sx={{ mb: 2 }} />
-
-                                <Box mb={2}>
-                                    <Typography variant='subtitle2' color='textSecondary'>
+                {/* API Subscriptions Section */}
+                {application.subscribedApis && application.subscribedApis.length > 0 && (
+                    <Paper className={classes.Paper} sx={{ mx: 2 }}>
+                        <Typography variant='h6' className={classes.heading} gutterBottom>
+                            <FormattedMessage
+                                id='Applications.Details.DiscoveredApplicationInfo.subscriptions'
+                                defaultMessage='API Subscriptions'
+                            />
+                        </Typography>
+                        <Table size='small'>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>
                                         <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.status'
+                                            id='Applications.Details.DiscoveredApplicationInfo.api.name'
+                                            defaultMessage='API Name'
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormattedMessage
+                                            id='Applications.Details.DiscoveredApplicationInfo.api.version'
+                                            defaultMessage='Version'
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormattedMessage
+                                            id='Applications.Details.DiscoveredApplicationInfo.api.context'
+                                            defaultMessage='Context'
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormattedMessage
+                                            id='Applications.Details.DiscoveredApplicationInfo.subscription.tier'
+                                            defaultMessage='Tier'
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormattedMessage
+                                            id='Applications.Details.DiscoveredApplicationInfo.subscription.status'
                                             defaultMessage='Status'
                                         />
-                                    </Typography>
-                                    <Box mt={1}>
-                                        {application.alreadyImported ? (
-                                            <Chip
-                                                label={intl.formatMessage({
-                                                    defaultMessage: 'Already Imported',
-                                                    id: 'Applications.Details.DiscoveredApplicationInfo.status.imported',
-                                                })}
-                                                color='success'
-                                            />
-                                        ) : (
-                                            <Chip
-                                                label={intl.formatMessage({
-                                                    defaultMessage: 'Not Imported',
-                                                    id: 'Applications.Details.DiscoveredApplicationInfo.status.not.imported',
-                                                })}
-                                                color='default'
-                                            />
-                                        )}
-                                    </Box>
-                                </Box>
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {application.subscribedApis.map((subscription) => {
+                                    const {
+                                        apiName,
+                                        apiVersion,
+                                        apiContext,
+                                        subscriptionTier,
+                                        subscriptionStatus,
+                                    } = subscription;
+                                    return (
+                                        <TableRow key={`${apiName}-${apiVersion}-${apiContext}`}>
+                                            <TableCell>{apiName}</TableCell>
+                                            <TableCell>{apiVersion}</TableCell>
+                                            <TableCell>{apiContext}</TableCell>
+                                            <TableCell>{subscriptionTier || 'Unlimited'}</TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label={subscriptionStatus || 'ACTIVE'}
+                                                    size='small'
+                                                    color={subscriptionStatus === 'ACTIVE' ? 'success' : 'warning'}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </Paper>
+                )}
 
-                                {application.alreadyImported && application.importedApplicationId && (
-                                    <Box mb={2}>
-                                        <Typography variant='subtitle2' color='textSecondary'>
-                                            <FormattedMessage
-                                                id='Applications.Details.DiscoveredApplicationInfo.imported.app.id'
-                                                defaultMessage='Imported Application ID'
-                                            />
-                                        </Typography>
-                                        <Typography variant='body1'>
-                                            {application.importedApplicationId}
-                                        </Typography>
-                                    </Box>
-                                )}
-
-                                {application.attributes && Object.keys(application.attributes).length > 0 && (
-                                    <Box>
-                                        <Typography variant='subtitle2' color='textSecondary' gutterBottom>
-                                            <FormattedMessage
-                                                id='Applications.Details.DiscoveredApplicationInfo.attributes'
-                                                defaultMessage='Additional Attributes'
-                                            />
-                                        </Typography>
-                                        {Object.entries(application.attributes).map(([key, value]) => (
-                                            <Box key={key} mb={1}>
-                                                <Typography variant='caption' color='textSecondary'>
-                                                    {key}
-                                                    :
-                                                </Typography>
-                                                <Typography variant='body2'>
-                                                    {value}
-                                                </Typography>
-                                            </Box>
-                                        ))}
-                                    </Box>
-                                )}
-                            </Paper>
-                        </Grid>
-
-                        {/* Application Keys Card */}
-                        {application.keyInfoList && application.keyInfoList.length > 0 && (
-                            <Grid item xs={12}>
-                                <Paper sx={{ p: 3 }}>
-                                    <Typography variant='h6' gutterBottom>
-                                        <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.keys'
-                                            defaultMessage='Application Keys'
-                                        />
-                                    </Typography>
-                                    <Divider sx={{ mb: 2 }} />
-
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.key.type'
-                                                        defaultMessage='Key Type'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.key.name'
-                                                        defaultMessage='Key Name'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.key.value'
-                                                        defaultMessage='Masked Key'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.key.state'
-                                                        defaultMessage='State'
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {application.keyInfoList.map((key) => (
-                                                <TableRow key={`${key.keyType}-${key.keyName || 'default'}`}>
-                                                    <TableCell>{key.keyType}</TableCell>
-                                                    <TableCell>{key.keyName || '-'}</TableCell>
-                                                    <TableCell>
-                                                        <code>{key.maskedKeyValue || '***'}</code>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip
-                                                            label={key.state || 'ACTIVE'}
-                                                            size='small'
-                                                            color={key.state === 'ACTIVE' ? 'success' : 'default'}
-                                                        />
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </Paper>
-                            </Grid>
-                        )}
-
-                        {/* Subscriptions Card */}
-                        {application.subscribedApis && application.subscribedApis.length > 0 && (
-                            <Grid item xs={12}>
-                                <Paper sx={{ p: 3 }}>
-                                    <Typography variant='h6' gutterBottom>
-                                        <FormattedMessage
-                                            id='Applications.Details.DiscoveredApplicationInfo.subscriptions'
-                                            defaultMessage='API Subscriptions'
-                                        />
-                                    </Typography>
-                                    <Divider sx={{ mb: 2 }} />
-
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.api.name'
-                                                        defaultMessage='API Name'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.api.version'
-                                                        defaultMessage='Version'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.api.context'
-                                                        defaultMessage='Context'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.subscription.tier'
-                                                        defaultMessage='Tier'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.DiscoveredApplicationInfo.subscription.status'
-                                                        defaultMessage='Status'
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {application.subscribedApis.map((subscription) => {
-                                                const {
-                                                    apiName,
-                                                    apiVersion,
-                                                    apiContext,
-                                                    subscriptionTier,
-                                                    subscriptionStatus,
-                                                } = subscription;
-
-                                                return (
-                                                    <TableRow key={`${apiName}-${apiVersion}-${apiContext}`}>
-                                                        <TableCell>{apiName}</TableCell>
-                                                        <TableCell>{apiVersion}</TableCell>
-                                                        <TableCell>{apiContext}</TableCell>
-                                                        <TableCell>{subscriptionTier || 'Unlimited'}</TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                label={subscriptionStatus || 'ACTIVE'}
-                                                                size='small'
-                                                                color={subscriptionStatus === 'ACTIVE' ? 'success' : 'warning'}
-                                                            />
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </Paper>
-                            </Grid>
-                        )}
-                    </Grid>
-                </Box>
-            </Box>
+                {/* Reference Artifact Dialog */}
+                {this.renderReferenceDialog()}
+            </Root>
         );
     }
 }
