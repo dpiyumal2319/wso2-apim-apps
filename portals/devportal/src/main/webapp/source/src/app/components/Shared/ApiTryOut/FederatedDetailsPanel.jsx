@@ -25,15 +25,11 @@ import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import InputAdornment from '@mui/material/InputAdornment';
-import IconButton from '@mui/material/IconButton';
-import Icon from '@mui/material/Icon';
 import WarningIcon from '@mui/icons-material/Warning';
-import MuiAlert from '@mui/material/Alert';
-import AlertTitle from '@mui/material/AlertTitle';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
 import { ApiContext } from '../../Apis/Details/ApiContext';
+import { getCredentialRenderer, getInvocationRenderer } from '../../Apis/Details/Credentials/federated/CredentialRendererRegistry';
 
 const FederatedDetailsPanel = (props) => {
     const {
@@ -48,7 +44,6 @@ const FederatedDetailsPanel = (props) => {
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [federatedSupport, setFederatedSupport] = useState(null);
-    const [showCredential, setShowCredential] = useState(false);
 
     const apiClient = new Api();
 
@@ -112,7 +107,6 @@ const FederatedDetailsPanel = (props) => {
 
     const handleSubscriptionChange = (event) => {
         setSelectedSubscription(event.target.value);
-        setShowCredential(false);
     };
 
     const handleCreate = () => {
@@ -162,34 +156,18 @@ const FederatedDetailsPanel = (props) => {
             .finally(() => setActionLoading(false));
     };
 
-    const getCredentialDisplayValue = () => {
-        if (!fedSubInfo || !fedSubInfo.credential) return '';
-        try {
-            const parsed = JSON.parse(fedSubInfo.credential.body);
-            if (fedSubInfo.credential.masked) {
-                return parsed.primaryKey || '••••••••••••••••';
-            }
-            return parsed.primaryKey || '';
-        } catch {
-            return '';
-        }
-    };
-
-    const getInvocationInfo = () => {
-        if (!fedSubInfo || !fedSubInfo.invocationInstruction) return null;
-        try {
-            return JSON.parse(fedSubInfo.invocationInstruction.body);
-        } catch {
-            return null;
-        }
-    };
-
     const hasSubscriptions = subscribedApplications && subscribedApplications.length > 0;
     const hasCredential = fedSubInfo && fedSubInfo.credential;
-    const credentialValue = getCredentialDisplayValue();
-    const invocationInfo = getInvocationInfo();
     const isMasked = hasCredential && fedSubInfo.credential.masked;
     const isRetrievable = hasCredential && fedSubInfo.credential.isValueRetrievable;
+
+    // Determine credential schema, defaulting to primary-secondary-key-pair if not present
+    const credentialSchema = 'primary-secondary-key-pair';
+    const CredentialRenderer = getCredentialRenderer(credentialSchema);
+
+    // Determine invocation schema if available, otherwise fallback
+    const invocationSchema = 'header-with-query-fallback'; 
+    const InvocationRenderer = getInvocationRenderer(invocationSchema);
 
     return (
         <Box display='block' justifyContent='center' className={classes.authHeader}>
@@ -274,49 +252,9 @@ const FederatedDetailsPanel = (props) => {
                         <Box display='block' justifyContent='center'>
                             <Grid x={8} md={6} className={classes.tokenType} item>
                                 {hasCredential && (
-                                    <TextField
-                                        fullWidth
-                                        margin='normal'
-                                        variant='outlined'
-                                        label={(
-                                            <FormattedMessage
-                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.credential'
-                                                defaultMessage='API Key'
-                                            />
-                                        )}
-                                        name='federatedCredential'
-                                        type={showCredential ? 'text' : 'password'}
-                                        value={credentialValue}
-                                        id='federatedCredentialInput'
-                                        InputProps={{
-                                            readOnly: true,
-                                            endAdornment: (
-                                                <InputAdornment position='end'>
-                                                    <IconButton
-                                                        edge='end'
-                                                        aria-label='Toggle credential visibility'
-                                                        onClick={() => setShowCredential(!showCredential)}
-                                                        size='large'
-                                                    >
-                                                        {showCredential ? <Icon>visibility_off</Icon>
-                                                            : <Icon>visibility</Icon>}
-                                                    </IconButton>
-                                                </InputAdornment>
-                                            ),
-                                            startAdornment: invocationInfo && invocationInfo.headerName && (
-                                                <InputAdornment
-                                                    style={{
-                                                        minWidth: ((invocationInfo.headerName.length + 2) * 7),
-                                                    }}
-                                                    position='start'
-                                                >
-                                                    {`${invocationInfo.headerName}: `}
-                                                </InputAdornment>
-                                            ),
-                                        }}
-                                    />
+                                    <CredentialRenderer body={fedSubInfo.credential.body} masked={fedSubInfo.credential.masked} />
                                 )}
-                                <Box display='flex' flexWrap='wrap' gap={1}>
+                                <Box display='flex' flexWrap='wrap' alignItems='center' gap={1} mt={2}>
                                     {!hasCredential && (
                                         <Button
                                             onClick={handleCreate}
@@ -346,7 +284,7 @@ const FederatedDetailsPanel = (props) => {
                                                 {actionLoading && <CircularProgress size={15} />}
                                                 <FormattedMessage
                                                     id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
-                                                    defaultMessage='REGENERATE'
+                                                    defaultMessage='REGENERATE KEYS'
                                                 />
                                             </Button>
                                             {isMasked && isRetrievable && (
@@ -361,7 +299,7 @@ const FederatedDetailsPanel = (props) => {
                                                     {actionLoading && <CircularProgress size={15} />}
                                                     <FormattedMessage
                                                         id='Apis.Details.ApiConsole.FederatedDetailsPanel.retrieve'
-                                                        defaultMessage='RETRIEVE KEY'
+                                                        defaultMessage='SHOW KEYS'
                                                     />
                                                 </Button>
                                             )}
@@ -372,37 +310,9 @@ const FederatedDetailsPanel = (props) => {
                         </Box>
                     )}
 
-                    {invocationInfo && (
+                    {!loading && fedSubInfo && fedSubInfo.invocationInstruction && (
                         <Grid x={12} md={6} className={classes.centerItems} style={{ marginTop: '10px' }}>
-                            <MuiAlert severity='info' variant='filled' sx={{ bgcolor: 'background.paper' }}>
-                                <AlertTitle>
-                                    <FormattedMessage
-                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.invocation.details'
-                                        defaultMessage='Invocation Details'
-                                    />
-                                </AlertTitle>
-                                {invocationInfo.headerName && (
-                                    <div>
-                                        <strong>Header: </strong>
-                                        {invocationInfo.headerName}
-                                    </div>
-                                )}
-                                {invocationInfo.baseUrl && (
-                                    <div>
-                                        <strong>Base URL: </strong>
-                                        {invocationInfo.baseUrl}
-                                        {invocationInfo.basePath || ''}
-                                    </div>
-                                )}
-                                {invocationInfo.curlExample && (
-                                    <div style={{ marginTop: '8px' }}>
-                                        <strong>cURL: </strong>
-                                        <code style={{ wordBreak: 'break-all' }}>
-                                            {invocationInfo.curlExample}
-                                        </code>
-                                    </div>
-                                )}
-                            </MuiAlert>
+                            <InvocationRenderer body={fedSubInfo.invocationInstruction.body} />
                         </Grid>
                     )}
                 </>

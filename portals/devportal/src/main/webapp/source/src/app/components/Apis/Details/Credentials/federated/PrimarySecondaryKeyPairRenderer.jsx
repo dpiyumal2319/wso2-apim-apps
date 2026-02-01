@@ -18,6 +18,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
+import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -43,9 +44,8 @@ function KeyField({ label, value, masked }) {
             label={label}
             value={displayValue}
             fullWidth
-            size='small'
+            margin='normal'
             variant='outlined'
-            sx={{ mb: 1 }}
             InputProps={{
                 readOnly: true,
                 endAdornment: (
@@ -82,23 +82,29 @@ export default function PrimarySecondaryKeyPairRenderer({ body, masked }) {
     const { primaryKey, secondaryKey } = parsed;
 
     return (
-        <Box sx={{ mt: 1 }}>
-            <Typography variant='subtitle2' sx={{ mb: 1 }}>
+        <Box>
+            <Typography variant='subtitle2' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.Credentials.federated.PrimarySecondaryKeyPair.title'
                     defaultMessage='API Keys'
                 />
             </Typography>
-            <KeyField
-                label='Primary Key'
-                value={primaryKey || ''}
-                masked={masked}
-            />
-            <KeyField
-                label='Secondary Key'
-                value={secondaryKey || ''}
-                masked={masked}
-            />
+            <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                    <KeyField
+                        label='Primary Key'
+                        value={primaryKey || ''}
+                        masked={masked}
+                    />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                    <KeyField
+                        label='Secondary Key'
+                        value={secondaryKey || ''}
+                        masked={masked}
+                    />
+                </Grid>
+            </Grid>
         </Box>
     );
 }
