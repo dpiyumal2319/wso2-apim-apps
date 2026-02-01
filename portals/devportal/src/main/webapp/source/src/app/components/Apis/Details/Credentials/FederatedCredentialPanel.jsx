@@ -25,7 +25,15 @@ import Divider from '@mui/material/Divider';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { getCredentialRenderer, getInvocationRenderer } from './federated/CredentialRendererRegistry';
+
+const PREFIX = 'FederatedCredentialPanel';
+
+const classes = {
+    keyTitle: `${PREFIX}-keyTitle`,
+    subTitle: `${PREFIX}-subTitle`,
+};
 
 const FederatedCredentialPanel = (props) => {
     const {
@@ -158,6 +166,22 @@ const FederatedCredentialPanel = (props) => {
 
     return (
         <Box sx={{ p: 2 }}>
+            <Box mb={1}>
+                <Typography variant='h5' className={classes.keyTitle}>
+                    <FormattedMessage
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.title'
+                        defaultMessage='Federated OAuth2 Keys'
+                    />
+                </Typography>
+            </Box>
+            <Box mb={1}>
+                <Typography className={classes.subTitle} variant='h6' component='h6'>
+                    <FormattedMessage
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.key.and.secret.title'
+                        defaultMessage='Key and Secret'
+                    />
+                </Typography>
+            </Box>
             {credential && (
                 <CredentialRenderer body={credential.body} masked={credential.masked} />
             )}
@@ -192,8 +216,8 @@ const FederatedCredentialPanel = (props) => {
                 </Button>
                 <Button
                     variant='outlined'
-                    color='error'
-                    size='small'
+                    color='secondary'
+                    startIcon={<DeleteIcon />}
                     onClick={handleDelete}
                     disabled={actionLoading}
                 >
