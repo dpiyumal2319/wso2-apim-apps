@@ -42,6 +42,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AdvertiseDetailsPanel from 'AppComponents/Shared/ApiTryOut/AdvertiseDetailsPanel';
+import FederatedDetailsPanel from 'AppComponents/Shared/ApiTryOut/FederatedDetailsPanel';
 import Progress from '../Progress';
 import Api from '../../../data/api';
 import Application from '../../../data/Application';
@@ -424,6 +425,9 @@ function TryOutController(props) {
      * @memberof TryOutController
      */
     function updateApplication() {
+        if (api.gatewayVendor && api.gatewayVendor !== 'wso2') {
+            return;
+        }
         if (api.lifeCycleStatus) {
             let accessToken;
             let keyType;
@@ -923,16 +927,23 @@ function TryOutController(props) {
                                 )}
                             </Grid>
                         </Box>
-                    ) : (
-                        <AdvertiseDetailsPanel
-                            classes={classes}
-                            advAuthHeader={advAuthHeader}
-                            advAuthHeaderValue={advAuthHeaderValue}
-                            handleChanges={handleChanges}
-                            selectedEndpoint={selectedEndpoint}
-                            api={api}
-                        />
-                    )}
+                    ) : (api.gatewayVendor && api.gatewayVendor !== 'wso2'
+                        && (!api.advertiseInfo || !api.advertiseInfo.advertised)) ? (
+                            <FederatedDetailsPanel
+                                classes={classes}
+                                setAdvAuthHeader={setAdvAuthHeader}
+                                setAdvAuthHeaderValue={setAdvAuthHeaderValue}
+                            />
+                        ) : (
+                            <AdvertiseDetailsPanel
+                                classes={classes}
+                                advAuthHeader={advAuthHeader}
+                                advAuthHeaderValue={advAuthHeaderValue}
+                                handleChanges={handleChanges}
+                                selectedEndpoint={selectedEndpoint}
+                                api={api}
+                            />
+                        )}
                     {(!api.advertiseInfo || !api.advertiseInfo.advertised) 
                         && (api.gatewayVendor === 'wso2' || !api.gatewayVendor) && (
                         <Box display='flex' justifyContent='center' className={classes.gatewayEnvironment}>

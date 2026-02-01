@@ -980,4 +980,55 @@ export default class API extends Resource {
             return client.apis.Users.organizationInformation(this._requestMetaData());
         });
     }
+
+    getFederatedSubscriptionSupport() {
+        return this.client.then((client) => {
+            return client.apis.Environments.getFederatedSubscriptionSupport(this._requestMetaData());
+        });
+    }
+
+    createFederatedSubscription(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis['Federated Subscriptions'].createFederatedSubscription(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    getFederatedSubscription(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis['Federated Subscriptions'].getFederatedSubscription(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    deleteFederatedSubscription(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis['Federated Subscriptions'].deleteFederatedSubscription(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    retrieveFederatedCredential(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis.Subscriptions.retrieveFederatedCredential(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    regenerateFederatedCredential(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis.Subscriptions.regenerateSubscriptionCredential(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
 }

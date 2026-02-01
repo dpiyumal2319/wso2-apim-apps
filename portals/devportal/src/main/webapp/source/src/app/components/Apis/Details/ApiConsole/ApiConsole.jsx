@@ -422,7 +422,7 @@ class ApiConsole extends React.Component {
                 })
                 .then((appKeys) => {
                     if (appKeys.get(selectedKeyManager)
-                    && appKeys.get(selectedKeyManager).keyType === selectedKeyType) {
+                        && appKeys.get(selectedKeyManager).keyType === selectedKeyType) {
                         ({ accessToken } = appKeys.get(selectedKeyManager).token);
                     }
                     if (appKeys.get(selectedKeyManager).keyType === 'PRODUCTION') {
@@ -570,8 +570,8 @@ class ApiConsole extends React.Component {
                                         <FormattedMessage
                                             id='api.console.require.access.token'
                                             defaultMessage={'You need an access token to try the API. Please log '
-                                            + 'in and subscribe to the API to generate an access token. If you already '
-                                            + 'have an access token, please provide it below.'}
+                                                + 'in and subscribe to the API to generate an access token. If you already '
+                                                + 'have an access token, please provide it below.'}
                                         />
                                     </Typography>
                                 </Paper>
