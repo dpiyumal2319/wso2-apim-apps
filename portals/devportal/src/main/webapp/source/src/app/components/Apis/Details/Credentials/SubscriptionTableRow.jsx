@@ -25,11 +25,13 @@ import PropTypes from 'prop-types';
 import { FormattedMessage } from 'react-intl';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import FederatedCredentialPanel from './FederatedCredentialPanel';
 
 const subscriptionTableRow = (props) => {
     const {
         loadInfo, handleSubscriptionDelete, isKeyManagerAllowed,
         selectedAppId, updateSubscriptionData, selectedKeyType, app, applicationOwner, hashEnabled,
+        isFederated, credentialSchema, invocationSchema,
     } = props;
     const theme = useTheme();
     return (
@@ -133,71 +135,123 @@ const subscriptionTableRow = (props) => {
                                 />
                             </MUILink>
                         </ScopeValidation>
-                        <MUILink
-                            sx={(themeValue) => ({
-                                padding: themeValue.spacing(1),
-                                color: themeValue.palette.getContrastText(themeValue.palette.background.default),
-                                display: 'flex',
-                                alignItems: 'center',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                '& span': {
-                                    paddingLeft: 1,
-                                    display: 'inline-block',
-                                },
-                            })}
-                            onClick={() => loadInfo('PRODUCTION', app.value)}
-                            id={app.label + '-PK'}
-                            aria-labelledby={app.label + '-PK ' + app.label}
-                            underline='hover'
-                        >
-                            <span>
-                                <FormattedMessage
-                                    id='Apis.Details.Credentials.SubscriptionTableRow.prod.keys'
-                                    defaultMessage='PROD KEYS'
+                        {isFederated ? (
+                            <MUILink
+                                sx={(themeValue) => ({
+                                    padding: themeValue.spacing(1),
+                                    color: themeValue.palette.getContrastText(themeValue.palette.background.default),
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    '& span': {
+                                        paddingLeft: 1,
+                                        display: 'inline-block',
+                                    },
+                                })}
+                                onClick={() => loadInfo('FEDERATED', app.value)}
+                                id={app.label + '-FC'}
+                                aria-labelledby={app.label + '-FC ' + app.label}
+                                underline='hover'
+                            >
+                                <span>
+                                    <FormattedMessage
+                                        id='Apis.Details.Credentials.SubscriptionTableRow.manage.credential'
+                                        defaultMessage='MANAGE CREDENTIAL'
+                                    />
+                                </span>
+                                <CustomIcon
+                                    width={16}
+                                    height={16}
+                                    strokeColor={theme.palette.primary.main}
+                                    icon='productionkeys'
                                 />
-                            </span>
-                            <CustomIcon
-                                width={16}
-                                height={16}
-                                strokeColor={theme.palette.primary.main}
-                                icon='productionkeys'
-                            />
-                        </MUILink>
-                        <MUILink
-                            sx={(themeValue) => ({
-                                padding: themeValue.spacing(1),
-                                color: themeValue.palette.getContrastText(themeValue.palette.background.default),
-                                display: 'flex',
-                                alignItems: 'center',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                '& span': {
-                                    paddingLeft: 1,
-                                    display: 'inline-block',
-                                },
-                            })}
-                            onClick={() => loadInfo('SANDBOX', app.value)}
-                            id={app.label + '-SB'}
-                            aria-labelledby={app.label + '-SB ' + app.label}
-                            underline='hover'
-                        >
-                            <span>
-                                <FormattedMessage
-                                    id='Apis.Details.Credentials.SubscriptionTableRow.sandbox.keys'
-                                    defaultMessage='SANDBOX KEYS'
-                                />
-                            </span>
-                            <CustomIcon
-                                width={16}
-                                height={16}
-                                strokeColor={theme.palette.primary.main}
-                                icon='productionkeys'
-                            />
-                        </MUILink>
+                            </MUILink>
+                        ) : (
+                            <>
+                                <MUILink
+                                    sx={(themeValue) => ({
+                                        padding: themeValue.spacing(1),
+                                        color: themeValue.palette.getContrastText(themeValue.palette.background.default),
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        '& span': {
+                                            paddingLeft: 1,
+                                            display: 'inline-block',
+                                        },
+                                    })}
+                                    onClick={() => loadInfo('PRODUCTION', app.value)}
+                                    id={app.label + '-PK'}
+                                    aria-labelledby={app.label + '-PK ' + app.label}
+                                    underline='hover'
+                                >
+                                    <span>
+                                        <FormattedMessage
+                                            id='Apis.Details.Credentials.SubscriptionTableRow.prod.keys'
+                                            defaultMessage='PROD KEYS'
+                                        />
+                                    </span>
+                                    <CustomIcon
+                                        width={16}
+                                        height={16}
+                                        strokeColor={theme.palette.primary.main}
+                                        icon='productionkeys'
+                                    />
+                                </MUILink>
+                                <MUILink
+                                    sx={(themeValue) => ({
+                                        padding: themeValue.spacing(1),
+                                        color: themeValue.palette.getContrastText(themeValue.palette.background.default),
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        '& span': {
+                                            paddingLeft: 1,
+                                            display: 'inline-block',
+                                        },
+                                    })}
+                                    onClick={() => loadInfo('SANDBOX', app.value)}
+                                    id={app.label + '-SB'}
+                                    aria-labelledby={app.label + '-SB ' + app.label}
+                                    underline='hover'
+                                >
+                                    <span>
+                                        <FormattedMessage
+                                            id='Apis.Details.Credentials.SubscriptionTableRow.sandbox.keys'
+                                            defaultMessage='SANDBOX KEYS'
+                                        />
+                                    </span>
+                                    <CustomIcon
+                                        width={16}
+                                        height={16}
+                                        strokeColor={theme.palette.primary.main}
+                                        icon='productionkeys'
+                                    />
+                                </MUILink>
+                            </>
+                        )}
                     </Box>
                 </td>
             </tr>
+            {app.value === selectedAppId && selectedKeyType === 'FEDERATED' && (
+                <tr>
+                    <td colSpan='4'>
+                        <Box sx={(themeValue) => ({
+                            borderLeft: 'solid 2px ' + themeValue.palette.primary.main,
+                        })}
+                        >
+                            <FederatedCredentialPanel
+                                subscriptionId={app.subscriptionId}
+                                credentialSchema={credentialSchema}
+                                invocationSchema={invocationSchema}
+                            />
+                        </Box>
+                    </td>
+                </tr>
+            )}
             {app.value === selectedAppId && (selectedKeyType === 'PRODUCTION' || selectedKeyType === 'SANDBOX') && (
                 <tr>
                     <td colSpan='4'>
@@ -247,5 +301,13 @@ subscriptionTableRow.propTypes = {
         value: PropTypes.string,
         subscriptionId: PropTypes.string,
     }).isRequired,
+    isFederated: PropTypes.bool,
+    credentialSchema: PropTypes.string,
+    invocationSchema: PropTypes.string,
+};
+subscriptionTableRow.defaultProps = {
+    isFederated: false,
+    credentialSchema: null,
+    invocationSchema: null,
 };
 export default (subscriptionTableRow);
