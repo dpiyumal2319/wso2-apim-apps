@@ -175,7 +175,7 @@ const FederatedDetailsPanel = (props) => {
     const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
 
     return (
-        <Box className={classes.authHeader}>
+        <Box display='block' justifyContent='center' className={classes.authHeader}>
             {!hasSubscriptions ? (
                 <Grid x={8} md={6} className={classes.tokenType} item>
                     <Box mb={1} alignItems='center'>
@@ -193,34 +193,32 @@ const FederatedDetailsPanel = (props) => {
                     </Box>
                 </Grid>
             ) : (
-                (!loading && !hasCredential && hasSubscriptions) && (
-                    <Grid x={8} md={6} className={classes.tokenType} item>
-                        <Box mb={1} alignItems='center'>
-                            <Typography variant='body1'>
-                                <Box display='flex'>
-                                    <WarningIcon className={classes.warningIcon} />
-                                    <div>
-                                        <FormattedMessage
-                                            id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
-                                            defaultMessage='No credential generated for this subscription.'
-                                        />
-                                    </div>
-                                </Box>
-                            </Typography>
-                        </Box>
-                    </Grid>
-                )
-            )}
-            {hasSubscriptions && (
                 <>
-                    <Grid x={12} md={6} className={classes.centerItems} item>
+                    <Grid x={12} md={6} className={classes.centerItems}>
+                        <Typography variant='h5' component='h2' color='textPrimary' className={classes.categoryHeading}>
+                            <FormattedMessage
+                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.security.heading'
+                                defaultMessage='Security'
+                            />
+                        </Typography>
+                        <Typography
+                            variant='h6'
+                            component='label'
+                            color='textSecondary'
+                            className={classes.tryoutHeading}
+                        >
+                            <FormattedMessage
+                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.subscription.heading'
+                                defaultMessage='Application'
+                            />
+                        </Typography>
                         <TextField
                             fullWidth
                             id='selected-subscription'
                             select
                             label={(
                                 <FormattedMessage
-                                    defaultMessage='Subscription'
+                                    defaultMessage='Application'
                                     id='Apis.Details.ApiConsole.FederatedDetailsPanel.subscription'
                                 />
                             )}
@@ -229,7 +227,7 @@ const FederatedDetailsPanel = (props) => {
                             onChange={handleSubscriptionChange}
                             helperText={(
                                 <FormattedMessage
-                                    defaultMessage='Select a subscription'
+                                    defaultMessage='Select an application'
                                     id='Apis.Details.ApiConsole.FederatedDetailsPanel.select.subscription'
                                 />
                             )}
@@ -254,72 +252,112 @@ const FederatedDetailsPanel = (props) => {
                         </Box>
                     )}
 
-                    {!loading && (
-                        <Box display='block' justifyContent='center'>
-                            <Grid x={8} md={6} className={classes.tokenType} item>
-                                {!hasCredential && (
-                                    <Button
-                                        onClick={handleCreate}
-                                        variant='contained'
-                                        color='grey'
-                                        className={classes.genKeyButton}
-                                        disabled={actionLoading || !selectedSubscription}
-                                        id='gen-federated-credential'
-                                    >
-                                        {actionLoading && <CircularProgress size={15} />}
-                                        <FormattedMessage
-                                            id='Apis.Details.ApiConsole.FederatedDetailsPanel.generate'
-                                            defaultMessage='GENERATE CREDENTIAL'
-                                        />
-                                    </Button>
-                                )}
-                                {hasCredential && (
-                                    <CredentialRenderer
-                                        body={fedSubInfo.credential.body}
-                                        masked={fedSubInfo.credential.masked}
-                                        actionButtons={{
-                                            retrieve: isMasked && isRetrievable && (
-                                                <Button
-                                                    onClick={handleRetrieve}
-                                                    variant='contained'
-                                                    color='grey'
-                                                    className={classes.genKeyButton}
-                                                    disabled={actionLoading}
-                                                    id='retrieve-federated-credential'
-                                                >
-                                                    {actionLoading && <CircularProgress size={15} />}
-                                                    <FormattedMessage
-                                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.retrieve'
-                                                        defaultMessage='SHOW KEYS'
-                                                    />
-                                                </Button>
-                                            ),
-                                            regenerate: (
-                                                <Button
-                                                    onClick={handleRegenerate}
-                                                    variant='contained'
-                                                    color='grey'
-                                                    className={classes.genKeyButton}
-                                                    disabled={actionLoading}
-                                                    id='regen-federated-credential'
-                                                >
-                                                    {actionLoading && <CircularProgress size={15} />}
-                                                    <FormattedMessage
-                                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
-                                                        defaultMessage='REGENERATE KEYS'
-                                                    />
-                                                </Button>
-                                            ),
-                                            delete: null,
-                                        }}
+                    {!loading && !hasCredential && (
+                        <Grid x={8} md={6} className={classes.tokenType} item>
+                            <Box mb={1} alignItems='center'>
+                                <Typography variant='body1'>
+                                    <Box display='flex'>
+                                        <WarningIcon className={classes.warningIcon} />
+                                        <div>
+                                            <FormattedMessage
+                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
+                                                defaultMessage='No credential generated for this subscription.'
+                                            />
+                                        </div>
+                                    </Box>
+                                </Typography>
+                            </Box>
+                            <Button
+                                onClick={handleCreate}
+                                variant='contained'
+                                color='grey'
+                                className={classes.genKeyButton}
+                                disabled={actionLoading || !selectedSubscription}
+                                id='gen-federated-credential'
+                            >
+                                {actionLoading && <CircularProgress size={15} />}
+                                <FormattedMessage
+                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.generate'
+                                    defaultMessage='GENERATE CREDENTIAL'
+                                />
+                            </Button>
+                        </Grid>
+                    )}
+
+                    {!loading && hasCredential && (
+                        <>
+                            <Grid x={12} md={6} className={classes.centerItems}>
+                                <Typography
+                                    variant='h6'
+                                    component='label'
+                                    color='textSecondary'
+                                    className={classes.tryoutHeading}
+                                >
+                                    <FormattedMessage
+                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.credentials.heading'
+                                        defaultMessage='Credentials'
                                     />
-                                )}
+                                </Typography>
                             </Grid>
-                        </Box>
+                            <Grid x={12} md={6} className={classes.centerItems}>
+                                <CredentialRenderer
+                                    body={fedSubInfo.credential.body}
+                                    masked={fedSubInfo.credential.masked}
+                                    actionButtons={{
+                                        retrieve: isMasked && isRetrievable && (
+                                            <Button
+                                                onClick={handleRetrieve}
+                                                variant='contained'
+                                                color='grey'
+                                                className={classes.genKeyButton}
+                                                disabled={actionLoading}
+                                                style={{ marginLeft: 0 }}
+                                                id='retrieve-federated-credential'
+                                            >
+                                                {actionLoading && <CircularProgress size={15} />}
+                                                <FormattedMessage
+                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.retrieve'
+                                                    defaultMessage='SHOW KEYS'
+                                                />
+                                            </Button>
+                                        ),
+                                        regenerate: (
+                                            <Button
+                                                onClick={handleRegenerate}
+                                                variant='contained'
+                                                color='grey'
+                                                className={classes.genKeyButton}
+                                                disabled={actionLoading}
+                                                style={{ marginLeft: 0 }}
+                                                id='regen-federated-credential'
+                                            >
+                                                {actionLoading && <CircularProgress size={15} />}
+                                                <FormattedMessage
+                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
+                                                    defaultMessage='REGENERATE KEYS'
+                                                />
+                                            </Button>
+                                        ),
+                                        delete: null,
+                                    }}
+                                />
+                            </Grid>
+                        </>
                     )}
 
                     {!loading && fedSubInfo && fedSubInfo.invocationInstruction && (
-                        <Grid x={12} md={6} className={classes.centerItems} item sx={{ mt: 2 }}>
+                        <Grid x={12} md={6} className={classes.centerItems} style={{ marginTop: '10px' }}>
+                            <Typography
+                                variant='h6'
+                                component='label'
+                                color='textSecondary'
+                                className={classes.tryoutHeading}
+                            >
+                                <FormattedMessage
+                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.invocation.heading'
+                                    defaultMessage='Invocation'
+                                />
+                            </Typography>
                             <InvocationRenderer body={fedSubInfo.invocationInstruction.body} />
                         </Grid>
                     )}
