@@ -71,7 +71,7 @@ KeyField.propTypes = {
     masked: PropTypes.bool.isRequired,
 };
 
-export default function PrimarySecondaryKeyPairRenderer({ body, masked }) {
+export default function PrimarySecondaryKeyPairRenderer({ body, masked, actionButtons }) {
     let parsed;
     try {
         parsed = typeof body === 'string' ? JSON.parse(body) : body;
@@ -82,7 +82,7 @@ export default function PrimarySecondaryKeyPairRenderer({ body, masked }) {
     const { primaryKey, secondaryKey } = parsed;
 
     return (
-        <Box>
+        <Box sx={{ width: '100%' }}>
             <Typography variant='subtitle2' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.Credentials.federated.PrimarySecondaryKeyPair.title'
@@ -105,6 +105,13 @@ export default function PrimarySecondaryKeyPairRenderer({ body, masked }) {
                     />
                 </Grid>
             </Grid>
+            {actionButtons && (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    {actionButtons.retrieve}
+                    {actionButtons.regenerate}
+                    {actionButtons.delete}
+                </Box>
+            )}
         </Box>
     );
 }
@@ -112,4 +119,13 @@ export default function PrimarySecondaryKeyPairRenderer({ body, masked }) {
 PrimarySecondaryKeyPairRenderer.propTypes = {
     body: PropTypes.string.isRequired,
     masked: PropTypes.bool.isRequired,
+    actionButtons: PropTypes.shape({
+        retrieve: PropTypes.node,
+        regenerate: PropTypes.node,
+        delete: PropTypes.node,
+    }),
+};
+
+PrimarySecondaryKeyPairRenderer.defaultProps = {
+    actionButtons: null,
 };

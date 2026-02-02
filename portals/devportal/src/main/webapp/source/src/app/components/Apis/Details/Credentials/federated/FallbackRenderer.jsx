@@ -22,7 +22,7 @@ import IconButton from '@mui/material/IconButton';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Alert from 'AppComponents/Shared/Alert';
 
-export default function FallbackRenderer({ body }) {
+export default function FallbackRenderer({ body, actionButtons }) {
     let formatted;
     try {
         const parsed = typeof body === 'string' ? JSON.parse(body) : body;
@@ -37,31 +37,49 @@ export default function FallbackRenderer({ body }) {
     };
 
     return (
-        <Box
-            sx={{
-                mt: 1,
-                p: 1.5,
-                bgcolor: 'grey.100',
-                borderRadius: 1,
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-                position: 'relative',
-                overflowX: 'auto',
-                whiteSpace: 'pre-wrap',
-            }}
-        >
-            <IconButton
-                size='small'
-                onClick={handleCopy}
-                sx={{ position: 'absolute', top: 4, right: 4 }}
+        <>
+            <Box
+                sx={{
+                    mt: 1,
+                    p: 1.5,
+                    bgcolor: 'grey.100',
+                    borderRadius: 1,
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem',
+                    position: 'relative',
+                    overflowX: 'auto',
+                    whiteSpace: 'pre-wrap',
+                }}
             >
-                <ContentCopyIcon fontSize='small' />
-            </IconButton>
-            {formatted}
-        </Box>
+                <IconButton
+                    size='small'
+                    onClick={handleCopy}
+                    sx={{ position: 'absolute', top: 4, right: 4 }}
+                >
+                    <ContentCopyIcon fontSize='small' />
+                </IconButton>
+                {formatted}
+            </Box>
+            {actionButtons && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                    {actionButtons.retrieve}
+                    {actionButtons.regenerate}
+                    {actionButtons.delete}
+                </Box>
+            )}
+        </>
     );
 }
 
 FallbackRenderer.propTypes = {
     body: PropTypes.string.isRequired,
+    actionButtons: PropTypes.shape({
+        retrieve: PropTypes.node,
+        regenerate: PropTypes.node,
+        delete: PropTypes.node,
+    }),
+};
+
+FallbackRenderer.defaultProps = {
+    actionButtons: null,
 };
