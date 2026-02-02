@@ -40,6 +40,7 @@ const FederatedCredentialPanel = (props) => {
         subscriptionId,
         credentialSchema,
         invocationSchema,
+        gatewayType,
     } = props;
     const [loading, setLoading] = useState(true);
     const [fedSubInfo, setFedSubInfo] = useState(null);
@@ -161,8 +162,57 @@ const FederatedCredentialPanel = (props) => {
     }
 
     const { credential, invocationInstruction } = fedSubInfo;
-    const CredentialRenderer = getCredentialRenderer(credentialSchema);
-    const InvocationRenderer = getInvocationRenderer(invocationSchema);
+    const CredentialRenderer = getCredentialRenderer(gatewayType, credentialSchema);
+    const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
+
+    const actionButtons = {
+        retrieve: credential && credential.masked && credential.isValueRetrievable && (
+            <Button
+                variant='outlined'
+                size='small'
+                onClick={handleRetrieve}
+                disabled={actionLoading}
+            >
+                {actionLoading ? <CircularProgress size={16} /> : (
+                    <FormattedMessage
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.retrieve'
+                        defaultMessage='Retrieve Full Credential'
+                    />
+                )}
+            </Button>
+        ),
+        regenerate: (
+            <Button
+                variant='outlined'
+                size='small'
+                onClick={handleRegenerate}
+                disabled={actionLoading}
+            >
+                {actionLoading ? <CircularProgress size={16} /> : (
+                    <FormattedMessage
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.regenerate'
+                        defaultMessage='Regenerate Credential'
+                    />
+                )}
+            </Button>
+        ),
+        delete: (
+            <Button
+                variant='outlined'
+                color='secondary'
+                startIcon={<DeleteIcon />}
+                onClick={handleDelete}
+                disabled={actionLoading}
+            >
+                {actionLoading ? <CircularProgress size={16} /> : (
+                    <FormattedMessage
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.delete'
+                        defaultMessage='Delete Credential'
+                    />
+                )}
+            </Button>
+        ),
+    };
 
     return (
         <Box sx={{ p: 2 }}>
@@ -183,52 +233,13 @@ const FederatedCredentialPanel = (props) => {
                 </Typography>
             </Box>
             {credential && (
-                <CredentialRenderer body={credential.body} masked={credential.masked} />
+                <CredentialRenderer
+                    body={credential.body}
+                    masked={credential.masked}
+                    actionButtons={actionButtons}
+                    actionLoading={actionLoading}
+                />
             )}
-            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                {credential && credential.masked && credential.isValueRetrievable && (
-                    <Button
-                        variant='outlined'
-                        size='small'
-                        onClick={handleRetrieve}
-                        disabled={actionLoading}
-                    >
-                        {actionLoading ? <CircularProgress size={16} /> : (
-                            <FormattedMessage
-                                id='Apis.Details.Credentials.FederatedCredentialPanel.retrieve'
-                                defaultMessage='Retrieve Full Credential'
-                            />
-                        )}
-                    </Button>
-                )}
-                <Button
-                    variant='outlined'
-                    size='small'
-                    onClick={handleRegenerate}
-                    disabled={actionLoading}
-                >
-                    {actionLoading ? <CircularProgress size={16} /> : (
-                        <FormattedMessage
-                            id='Apis.Details.Credentials.FederatedCredentialPanel.regenerate'
-                            defaultMessage='Regenerate Credential'
-                        />
-                    )}
-                </Button>
-                <Button
-                    variant='outlined'
-                    color='secondary'
-                    startIcon={<DeleteIcon />}
-                    onClick={handleDelete}
-                    disabled={actionLoading}
-                >
-                    {actionLoading ? <CircularProgress size={16} /> : (
-                        <FormattedMessage
-                            id='Apis.Details.Credentials.FederatedCredentialPanel.delete'
-                            defaultMessage='Delete Credential'
-                        />
-                    )}
-                </Button>
-            </Box>
             {invocationInstruction && (
                 <>
                     <Divider sx={{ my: 2 }} />
@@ -244,11 +255,13 @@ FederatedCredentialPanel.propTypes = {
     subscriptionId: PropTypes.string.isRequired,
     credentialSchema: PropTypes.string,
     invocationSchema: PropTypes.string,
+    gatewayType: PropTypes.string,
 };
 
 FederatedCredentialPanel.defaultProps = {
     credentialSchema: null,
     invocationSchema: null,
+    gatewayType: null,
 };
 
 export default FederatedCredentialPanel;

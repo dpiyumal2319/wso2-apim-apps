@@ -655,6 +655,7 @@ class Credentials extends React.Component {
                                                 isFederated={!!isFederated}
                                                 credentialSchema={credentialSchema}
                                                 invocationSchema={invocationSchema}
+                                                gatewayType={api.gatewayType}
                                             />
                                         ))}
                                     </table>

@@ -161,16 +161,21 @@ const FederatedDetailsPanel = (props) => {
     const isMasked = hasCredential && fedSubInfo.credential.masked;
     const isRetrievable = hasCredential && fedSubInfo.credential.isValueRetrievable;
 
-    // Determine credential schema, defaulting to primary-secondary-key-pair if not present
-    const credentialSchema = 'primary-secondary-key-pair';
-    const CredentialRenderer = getCredentialRenderer(credentialSchema);
+    // Get schemas from federatedSupport
+    const credentialSchema = federatedSupport
+        && federatedSupport.credentialSchemas
+        && federatedSupport.credentialSchemas[0];
+    const invocationSchema = federatedSupport
+        && federatedSupport.invocationSchemas
+        && federatedSupport.invocationSchemas[0];
 
-    // Determine invocation schema if available, otherwise fallback
-    const invocationSchema = 'header-with-query-fallback'; 
-    const InvocationRenderer = getInvocationRenderer(invocationSchema);
+    const gatewayType = fedSubInfo && fedSubInfo.gatewayType;
+
+    const CredentialRenderer = getCredentialRenderer(gatewayType, credentialSchema);
+    const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
 
     return (
-        <Box display='block' justifyContent='center' className={classes.authHeader}>
+        <Box className={classes.authHeader}>
             {!hasSubscriptions ? (
                 <Grid x={8} md={6} className={classes.tokenType} item>
                     <Box mb={1} alignItems='center'>
@@ -188,8 +193,27 @@ const FederatedDetailsPanel = (props) => {
                     </Box>
                 </Grid>
             ) : (
+                (!loading && !hasCredential && hasSubscriptions) && (
+                    <Grid x={8} md={6} className={classes.tokenType} item>
+                        <Box mb={1} alignItems='center'>
+                            <Typography variant='body1'>
+                                <Box display='flex'>
+                                    <WarningIcon className={classes.warningIcon} />
+                                    <div>
+                                        <FormattedMessage
+                                            id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
+                                            defaultMessage='No credential generated for this subscription.'
+                                        />
+                                    </div>
+                                </Box>
+                            </Typography>
+                        </Box>
+                    </Grid>
+                )
+            )}
+            {hasSubscriptions && (
                 <>
-                    <Grid x={12} md={6} className={classes.centerItems}>
+                    <Grid x={12} md={6} className={classes.centerItems} item>
                         <TextField
                             fullWidth
                             id='selected-subscription'
@@ -230,64 +254,31 @@ const FederatedDetailsPanel = (props) => {
                         </Box>
                     )}
 
-                    {!loading && !hasCredential && (
-                        <Grid x={8} md={6} className={classes.tokenType} item>
-                            <Box mb={1} alignItems='center'>
-                                <Typography variant='body1'>
-                                    <Box display='flex'>
-                                        <WarningIcon className={classes.warningIcon} />
-                                        <div>
-                                            <FormattedMessage
-                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
-                                                defaultMessage='No credential generated for this subscription.'
-                                            />
-                                        </div>
-                                    </Box>
-                                </Typography>
-                            </Box>
-                        </Grid>
-                    )}
-
                     {!loading && (
                         <Box display='block' justifyContent='center'>
                             <Grid x={8} md={6} className={classes.tokenType} item>
-                                {hasCredential && (
-                                    <CredentialRenderer body={fedSubInfo.credential.body} masked={fedSubInfo.credential.masked} />
+                                {!hasCredential && (
+                                    <Button
+                                        onClick={handleCreate}
+                                        variant='contained'
+                                        color='grey'
+                                        className={classes.genKeyButton}
+                                        disabled={actionLoading || !selectedSubscription}
+                                        id='gen-federated-credential'
+                                    >
+                                        {actionLoading && <CircularProgress size={15} />}
+                                        <FormattedMessage
+                                            id='Apis.Details.ApiConsole.FederatedDetailsPanel.generate'
+                                            defaultMessage='GENERATE CREDENTIAL'
+                                        />
+                                    </Button>
                                 )}
-                                <Box display='flex' flexWrap='wrap' alignItems='center' gap={1} mt={2}>
-                                    {!hasCredential && (
-                                        <Button
-                                            onClick={handleCreate}
-                                            variant='contained'
-                                            color='grey'
-                                            className={classes.genKeyButton}
-                                            disabled={actionLoading || !selectedSubscription}
-                                            id='gen-federated-credential'
-                                        >
-                                            {actionLoading && <CircularProgress size={15} />}
-                                            <FormattedMessage
-                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.generate'
-                                                defaultMessage='GENERATE CREDENTIAL'
-                                            />
-                                        </Button>
-                                    )}
-                                    {hasCredential && (
-                                        <>
-                                            <Button
-                                                onClick={handleRegenerate}
-                                                variant='contained'
-                                                color='grey'
-                                                className={classes.genKeyButton}
-                                                disabled={actionLoading}
-                                                id='regen-federated-credential'
-                                            >
-                                                {actionLoading && <CircularProgress size={15} />}
-                                                <FormattedMessage
-                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
-                                                    defaultMessage='REGENERATE KEYS'
-                                                />
-                                            </Button>
-                                            {isMasked && isRetrievable && (
+                                {hasCredential && (
+                                    <CredentialRenderer
+                                        body={fedSubInfo.credential.body}
+                                        masked={fedSubInfo.credential.masked}
+                                        actionButtons={{
+                                            retrieve: isMasked && isRetrievable && (
                                                 <Button
                                                     onClick={handleRetrieve}
                                                     variant='contained'
@@ -302,16 +293,33 @@ const FederatedDetailsPanel = (props) => {
                                                         defaultMessage='SHOW KEYS'
                                                     />
                                                 </Button>
-                                            )}
-                                        </>
-                                    )}
-                                </Box>
+                                            ),
+                                            regenerate: (
+                                                <Button
+                                                    onClick={handleRegenerate}
+                                                    variant='contained'
+                                                    color='grey'
+                                                    className={classes.genKeyButton}
+                                                    disabled={actionLoading}
+                                                    id='regen-federated-credential'
+                                                >
+                                                    {actionLoading && <CircularProgress size={15} />}
+                                                    <FormattedMessage
+                                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
+                                                        defaultMessage='REGENERATE KEYS'
+                                                    />
+                                                </Button>
+                                            ),
+                                            delete: null,
+                                        }}
+                                    />
+                                )}
                             </Grid>
                         </Box>
                     )}
 
                     {!loading && fedSubInfo && fedSubInfo.invocationInstruction && (
-                        <Grid x={12} md={6} className={classes.centerItems} style={{ marginTop: '10px' }}>
+                        <Grid x={12} md={6} className={classes.centerItems} item sx={{ mt: 2 }}>
                             <InvocationRenderer body={fedSubInfo.invocationInstruction.body} />
                         </Grid>
                     )}

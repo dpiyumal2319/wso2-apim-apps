@@ -19,18 +19,39 @@ import PrimarySecondaryKeyPairRenderer from './PrimarySecondaryKeyPairRenderer';
 import HeaderWithQueryFallbackRenderer from './HeaderWithQueryFallbackRenderer';
 import FallbackRenderer from './FallbackRenderer';
 
+// Map of gatewayType:schemaName -> Renderer component
 const credentialRenderers = {
-    'primary-secondary-key-pair': PrimarySecondaryKeyPairRenderer,
+    'AZURE:primary-secondary-key-pair': PrimarySecondaryKeyPairRenderer,
 };
 
 const invocationRenderers = {
-    'header-with-query-fallback': HeaderWithQueryFallbackRenderer,
+    'AZURE:header-with-query-fallback': HeaderWithQueryFallbackRenderer,
 };
 
-export function getCredentialRenderer(schemaName) {
-    return credentialRenderers[schemaName] || FallbackRenderer;
+/**
+ * Get credential renderer based on gateway type and schema name
+ * @param {string} gatewayType - Gateway type (e.g., 'AZURE', 'KONG')
+ * @param {string} schemaName - Schema name from credentialSchema
+ * @returns {Component} Renderer component or FallbackRenderer
+ */
+export function getCredentialRenderer(gatewayType, schemaName) {
+    if (!gatewayType || !schemaName) {
+        return FallbackRenderer;
+    }
+    const key = `${gatewayType.toUpperCase()}:${schemaName}`;
+    return credentialRenderers[key] || FallbackRenderer;
 }
 
-export function getInvocationRenderer(schemaName) {
-    return invocationRenderers[schemaName] || FallbackRenderer;
+/**
+ * Get invocation renderer based on gateway type and schema name
+ * @param {string} gatewayType - Gateway type (e.g., 'AZURE', 'KONG')
+ * @param {string} schemaName - Schema name from invocationSchema
+ * @returns {Component} Renderer component or FallbackRenderer
+ */
+export function getInvocationRenderer(gatewayType, schemaName) {
+    if (!gatewayType || !schemaName) {
+        return FallbackRenderer;
+    }
+    const key = `${gatewayType.toUpperCase()}:${schemaName}`;
+    return invocationRenderers[key] || FallbackRenderer;
 }
