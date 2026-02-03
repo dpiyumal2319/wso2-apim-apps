@@ -161,9 +161,33 @@ const FederatedCredentialPanel = (props) => {
         );
     }
 
-    const { credential, invocationInstruction } = fedSubInfo;
-    const CredentialRenderer = getCredentialRenderer(gatewayType, credentialSchema);
-    const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
+    const { credential, invocationInstruction, gatewayType: responseGatewayType } = fedSubInfo;
+    const effectiveGatewayType = responseGatewayType || gatewayType;
+
+    // Extract schemas from response bodies
+    let extractedCredentialSchema = credentialSchema;
+    let extractedInvocationSchema = invocationSchema;
+
+    if (credential && credential.body) {
+        try {
+            const credentialData = JSON.parse(credential.body);
+            extractedCredentialSchema = credentialData.credentialType || extractedCredentialSchema;
+        } catch {
+            // ignore parse errors
+        }
+    }
+
+    if (invocationInstruction && invocationInstruction.body) {
+        try {
+            const invocationData = JSON.parse(invocationInstruction.body);
+            extractedInvocationSchema = invocationData.invocationSchema || extractedInvocationSchema;
+        } catch {
+            // ignore parse errors
+        }
+    }
+
+    const CredentialRenderer = getCredentialRenderer(effectiveGatewayType, extractedCredentialSchema);
+    const InvocationRenderer = getInvocationRenderer(effectiveGatewayType, extractedInvocationSchema);
 
     const actionButtons = {
         retrieve: credential && credential.masked && credential.isValueRetrievable && (
@@ -253,14 +277,10 @@ const FederatedCredentialPanel = (props) => {
 
 FederatedCredentialPanel.propTypes = {
     subscriptionId: PropTypes.string.isRequired,
-    credentialSchema: PropTypes.string,
-    invocationSchema: PropTypes.string,
     gatewayType: PropTypes.string,
 };
 
 FederatedCredentialPanel.defaultProps = {
-    credentialSchema: null,
-    invocationSchema: null,
     gatewayType: null,
 };
 

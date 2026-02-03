@@ -31,7 +31,7 @@ const subscriptionTableRow = (props) => {
     const {
         loadInfo, handleSubscriptionDelete, isKeyManagerAllowed,
         selectedAppId, updateSubscriptionData, selectedKeyType, app, applicationOwner, hashEnabled,
-        isFederated, credentialSchema, invocationSchema, gatewayType,
+        isFederated, gatewayType,
     } = props;
     const theme = useTheme();
     return (
@@ -245,8 +245,6 @@ const subscriptionTableRow = (props) => {
                         >
                             <FederatedCredentialPanel
                                 subscriptionId={app.subscriptionId}
-                                credentialSchema={credentialSchema}
-                                invocationSchema={invocationSchema}
                                 gatewayType={gatewayType}
                             />
                         </Box>
@@ -309,8 +307,6 @@ subscriptionTableRow.propTypes = {
 };
 subscriptionTableRow.defaultProps = {
     isFederated: false,
-    credentialSchema: null,
-    invocationSchema: null,
     gatewayType: null,
 };
 export default (subscriptionTableRow);

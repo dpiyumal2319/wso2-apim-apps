@@ -43,20 +43,8 @@ const FederatedDetailsPanel = (props) => {
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
-    const [federatedSupport, setFederatedSupport] = useState(null);
 
     const apiClient = new Api();
-
-    useEffect(() => {
-        apiClient.getFederatedSubscriptionSupport()
-            .then((response) => {
-                const envSupport = response.body.list.find((env) => env.supported);
-                setFederatedSupport(envSupport || null);
-            })
-            .catch((error) => {
-                console.error('Failed to fetch federated subscription support', error);
-            });
-    }, []);
 
     useEffect(() => {
         if (subscribedApplications && subscribedApplications.length > 0 && !selectedSubscription) {
@@ -161,15 +149,29 @@ const FederatedDetailsPanel = (props) => {
     const isMasked = hasCredential && fedSubInfo.credential.masked;
     const isRetrievable = hasCredential && fedSubInfo.credential.isValueRetrievable;
 
-    // Get schemas from federatedSupport
-    const credentialSchema = federatedSupport
-        && federatedSupport.credentialSchemas
-        && federatedSupport.credentialSchemas[0];
-    const invocationSchema = federatedSupport
-        && federatedSupport.invocationSchemas
-        && federatedSupport.invocationSchemas[0];
-
     const gatewayType = fedSubInfo && fedSubInfo.gatewayType;
+
+    // Extract schemas from response bodies
+    let credentialSchema = null;
+    let invocationSchema = null;
+
+    if (hasCredential && fedSubInfo.credential.body) {
+        try {
+            const credentialData = JSON.parse(fedSubInfo.credential.body);
+            credentialSchema = credentialData.credentialType || null;
+        } catch {
+            // ignore parse errors
+        }
+    }
+
+    if (fedSubInfo && fedSubInfo.invocationInstruction && fedSubInfo.invocationInstruction.body) {
+        try {
+            const invocationData = JSON.parse(fedSubInfo.invocationInstruction.body);
+            invocationSchema = invocationData.invocationSchema || null;
+        } catch {
+            // ignore parse errors
+        }
+    }
 
     const CredentialRenderer = getCredentialRenderer(gatewayType, credentialSchema);
     const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
