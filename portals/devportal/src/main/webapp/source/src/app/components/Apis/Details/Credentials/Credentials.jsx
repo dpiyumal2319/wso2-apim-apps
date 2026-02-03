@@ -238,7 +238,6 @@ class Credentials extends React.Component {
             applicationOwner: '',
             hashEnabled: false,
             isSubscribing: false,
-            federatedSupport: null,
         };
         this.api = new Api();
     }
@@ -253,24 +252,7 @@ class Credentials extends React.Component {
         } else {
             updateSubscriptionData(this.updateData);
         }
-        this.fetchFederatedSupport();
     }
-
-    fetchFederatedSupport = () => {
-        const { api } = this.context;
-        if (api && api.gatewayVendor && api.gatewayVendor !== 'wso2') {
-            this.api.getFederatedSubscriptionSupport()
-                .then((response) => {
-                    const envSupport = response.body.list.find(
-                        (env) => env.supported,
-                    );
-                    this.setState({ federatedSupport: envSupport || null });
-                })
-                .catch((error) => {
-                    console.error('Failed to fetch federated subscription support', error);
-                });
-        }
-    };
 
     updateData = () => {
         const { api, applicationsAvailable } = this.context;
@@ -440,15 +422,8 @@ class Credentials extends React.Component {
             applicationOwner,
             hashEnabled,
             isSubscribing,
-            federatedSupport,
         } = this.state;
         const isFederated = api.gatewayVendor && api.gatewayVendor !== 'wso2';
-        const credentialSchema = federatedSupport
-            && federatedSupport.credentialSchemas
-            && federatedSupport.credentialSchemas[0];
-        const invocationSchema = federatedSupport
-            && federatedSupport.invocationSchemas
-            && federatedSupport.invocationSchemas[0];
         const user = AuthManager.getUser();
         const isOnlyMutualSSL = api.securityScheme.includes('mutualssl') && !api.securityScheme.includes('oauth2')
         && !api.securityScheme.includes('api_key') && !api.securityScheme.includes('basic_auth');
@@ -653,8 +628,6 @@ class Credentials extends React.Component {
                                                 applicationOwner={applicationOwner}
                                                 hashEnabled={hashEnabled}
                                                 isFederated={!!isFederated}
-                                                credentialSchema={credentialSchema}
-                                                invocationSchema={invocationSchema}
                                                 gatewayType={api.gatewayType}
                                             />
                                         ))}

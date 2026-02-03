@@ -17,15 +17,19 @@
  */
 import PrimarySecondaryKeyPairRenderer from './PrimarySecondaryKeyPairRenderer';
 import HeaderWithQueryFallbackRenderer from './HeaderWithQueryFallbackRenderer';
+import OpaqueApiKeyRenderer from './OpaqueApiKeyRenderer';
+import HeaderBasedRenderer from './HeaderBasedRenderer';
 import FallbackRenderer from './FallbackRenderer';
 
 // Map of gatewayType:schemaName -> Renderer component
 const credentialRenderers = {
     'AZURE:primary-secondary-key-pair': PrimarySecondaryKeyPairRenderer,
+    'AWS:opaque-api-key': OpaqueApiKeyRenderer,
 };
 
 const invocationRenderers = {
     'AZURE:header-with-query-fallback': HeaderWithQueryFallbackRenderer,
+    'AWS:header-based': HeaderBasedRenderer,
 };
 
 /**
