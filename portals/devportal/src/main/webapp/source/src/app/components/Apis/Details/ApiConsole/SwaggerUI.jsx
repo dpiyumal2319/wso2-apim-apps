@@ -59,6 +59,11 @@ const SwaggerUI = (props) => {
                 if (currentAuthHeader) {
                     req.headers[currentAuthHeader] = accessTokenProvider();
                 }
+            } else if (api.gatewayVendor && api.gatewayVendor !== 'wso2') {
+                // Federated APIs - use custom header without prefix
+                if (currentAuthHeader) {
+                    req.headers[currentAuthHeader] = accessTokenProvider();
+                }
             } else {
                 req.headers[currentAuthHeader] = 'Bearer ' + accessTokenProvider();
             }

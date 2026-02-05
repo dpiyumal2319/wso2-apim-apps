@@ -181,7 +181,7 @@
   "Apis.Details.Credentials.FederatedCredentialPanel.no.credential": "No credential has been generated for this subscription yet.",
   "Apis.Details.Credentials.FederatedCredentialPanel.regenerate": "Regenerate Credential",
   "Apis.Details.Credentials.FederatedCredentialPanel.retrieve": "Retrieve Full Credential",
-  "Apis.Details.Credentials.FederatedCredentialPanel.title": "Federated OAuth2 Keys",
+  "Apis.Details.Credentials.FederatedCredentialPanel.title": "Credentials",
   "Apis.Details.Credentials.OriginalDevportalDetails.original.developer.portal.title": "Original Developer Portal",
   "Apis.Details.Credentials.OriginalDevportalDetails.visit.original.developer.portal": "Visit Original Developer Portal",
   "Apis.Details.Credentials.SubscibeButtonPanel.subscribe.btn": "Subscribe",

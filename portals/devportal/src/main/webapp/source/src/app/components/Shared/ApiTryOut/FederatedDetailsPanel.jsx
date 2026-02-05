@@ -30,6 +30,7 @@ import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
 import { ApiContext } from '../../Apis/Details/ApiContext';
 import { getCredentialRenderer, getInvocationRenderer } from '../../Apis/Details/Credentials/federated/CredentialRendererRegistry';
+import { getTryOutConfig } from '../../Apis/Details/Credentials/federated/TryOutConfigProvider';
 
 const FederatedDetailsPanel = (props) => {
     const {
@@ -71,25 +72,26 @@ const FederatedDetailsPanel = (props) => {
     }, [selectedSubscription]);
 
     const updateAuthValues = (info) => {
-        if (info && info.invocationInstruction) {
-            try {
-                const parsed = JSON.parse(info.invocationInstruction.body);
-                if (parsed.headerName && setAdvAuthHeader) {
-                    setAdvAuthHeader(parsed.headerName);
-                }
-            } catch {
-                // ignore parse errors
-            }
+        if (!info) return;
+
+        const credentialBody = info.credential?.body;
+        const invocationBody = info.invocationInstruction?.body;
+
+        // Use schema-based TryOutConfigProvider to extract values
+        // This automatically handles different credential types:
+        // - opaque-api-key (AWS, Kong) → extracts 'value' field
+        // - primary-secondary-key-pair (Azure) → extracts 'primaryKey' field
+        // - jwt-bearer (future) → extracts 'token' field
+        const tryOutConfig = getTryOutConfig(credentialBody, invocationBody);
+
+        // Set header name from invocation schema
+        if (tryOutConfig.headerName && setAdvAuthHeader) {
+            setAdvAuthHeader(tryOutConfig.headerName);
         }
-        if (info && info.credential && !info.credential.masked && setAdvAuthHeaderValue) {
-            try {
-                const parsed = JSON.parse(info.credential.body);
-                if (parsed.primaryKey) {
-                    setAdvAuthHeaderValue(parsed.primaryKey);
-                }
-            } catch {
-                // ignore parse errors
-            }
+
+        // Only set value if credential is not masked (full value available)
+        if (info.credential && !info.credential.masked && tryOutConfig.headerValue && setAdvAuthHeaderValue) {
+            setAdvAuthHeaderValue(tryOutConfig.headerValue);
         }
     };
 
@@ -179,7 +181,7 @@ const FederatedDetailsPanel = (props) => {
     return (
         <Box display='block' justifyContent='center' className={classes.authHeader}>
             {!hasSubscriptions ? (
-                <Grid x={8} md={6} className={classes.tokenType} item>
+                <Grid xs={8} md={6} className={classes.tokenType} item>
                     <Box mb={1} alignItems='center'>
                         <Typography variant='body1'>
                             <Box display='flex'>
@@ -196,7 +198,7 @@ const FederatedDetailsPanel = (props) => {
                 </Grid>
             ) : (
                 <>
-                    <Grid x={12} md={6} className={classes.centerItems}>
+                    <Grid xs={12} md={6} className={classes.centerItems}>
                         <Typography variant='h5' component='h2' color='textPrimary' className={classes.categoryHeading}>
                             <FormattedMessage
                                 id='Apis.Details.ApiConsole.FederatedDetailsPanel.security.heading'
@@ -255,7 +257,13 @@ const FederatedDetailsPanel = (props) => {
                     )}
 
                     {!loading && !hasCredential && (
-                        <Grid x={8} md={6} className={classes.tokenType} item>
+                        <Grid
+                            xs={8}
+                            md={6}
+                            className={classes.tokenType}
+                            item
+                            style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                        >
                             <Box mb={1} alignItems='center'>
                                 <Typography variant='body1'>
                                     <Box display='flex'>
@@ -274,6 +282,7 @@ const FederatedDetailsPanel = (props) => {
                                 variant='contained'
                                 color='grey'
                                 className={classes.genKeyButton}
+                                style={{ marginLeft: 0 }}
                                 disabled={actionLoading || !selectedSubscription}
                                 id='gen-federated-credential'
                             >
@@ -288,7 +297,7 @@ const FederatedDetailsPanel = (props) => {
 
                     {!loading && hasCredential && (
                         <>
-                            <Grid x={12} md={6} className={classes.centerItems}>
+                            <Grid xs={12} md={6} className={classes.centerItems}>
                                 <Typography
                                     variant='h6'
                                     component='label'
@@ -301,7 +310,7 @@ const FederatedDetailsPanel = (props) => {
                                     />
                                 </Typography>
                             </Grid>
-                            <Grid x={12} md={6} className={classes.centerItems}>
+                            <Grid xs={12} md={6} className={classes.centerItems}>
                                 <CredentialRenderer
                                     body={fedSubInfo.credential.body}
                                     masked={fedSubInfo.credential.masked}
@@ -348,7 +357,7 @@ const FederatedDetailsPanel = (props) => {
                     )}
 
                     {!loading && fedSubInfo && fedSubInfo.invocationInstruction && (
-                        <Grid x={12} md={6} className={classes.centerItems} style={{ marginTop: '10px' }}>
+                        <Grid xs={12} md={6} className={classes.centerItems} style={{ marginTop: '10px' }}>
                             <Typography
                                 variant='h6'
                                 component='label'
