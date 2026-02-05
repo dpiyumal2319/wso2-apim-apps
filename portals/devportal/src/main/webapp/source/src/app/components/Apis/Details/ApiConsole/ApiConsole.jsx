@@ -528,6 +528,11 @@ class ApiConsole extends React.Component {
             }
         }
 
+        // Handle federated APIs - use advAuthHeader from FederatedDetailsPanel
+        if (api.gatewayVendor && api.gatewayVendor !== 'wso2' && !api.advertiseInfo?.advertised) {
+            authorizationHeader = advAuthHeader || 'Authorization';
+        }
+
         let swaggerSpec = swagger;
         if (api.advertiseInfo && api.advertiseInfo.advertised) {
             authorizationHeader = advAuthHeader;

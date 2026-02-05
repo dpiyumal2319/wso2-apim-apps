@@ -30,7 +30,7 @@ import { FormattedMessage } from 'react-intl';
 import Alert from 'AppComponents/Shared/Alert';
 
 function KeyField({ label, value, masked }) {
-    const [visible, setVisible] = useState(!masked);
+    const [visible, setVisible] = useState(false);
     const displayValue = visible ? value : '••••••••••••••••••••';
 
     const handleCopy = () => {
@@ -45,16 +45,14 @@ function KeyField({ label, value, masked }) {
             value={displayValue}
             fullWidth
             margin='normal'
-            variant='outlined'
+            variant='filled'
             InputProps={{
                 readOnly: true,
                 endAdornment: (
                     <InputAdornment position='end'>
-                        {!masked && (
-                            <IconButton size='small' onClick={() => setVisible(!visible)}>
-                                {visible ? <VisibilityOffIcon fontSize='small' /> : <VisibilityIcon fontSize='small' />}
-                            </IconButton>
-                        )}
+                        <IconButton size='small' onClick={() => setVisible(!visible)}>
+                            {visible ? <VisibilityOffIcon fontSize='small' /> : <VisibilityIcon fontSize='small' />}
+                        </IconButton>
                         <IconButton size='small' onClick={handleCopy} disabled={masked}>
                             <ContentCopyIcon fontSize='small' />
                         </IconButton>

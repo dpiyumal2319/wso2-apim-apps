@@ -244,7 +244,7 @@ const FederatedCredentialPanel = (props) => {
                 <Typography variant='h5' className={classes.keyTitle}>
                     <FormattedMessage
                         id='Apis.Details.Credentials.FederatedCredentialPanel.title'
-                        defaultMessage='Federated OAuth2 Keys'
+                        defaultMessage='Credentials'
                     />
                 </Typography>
             </Box>
