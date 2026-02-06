@@ -58,6 +58,7 @@ const classes = {
     grid: `${PREFIX}-grid`,
     tryoutHeading: `${PREFIX}-tryoutHeading`,
     genKeyButton: `${PREFIX}-genKeyButton`,
+    deleteButton: `${PREFIX}-deleteButton`,
     gatewayEnvironment: `${PREFIX}-gatewayEnvironment`,
     categoryHeading: `${PREFIX}-categoryHeading`,
     tooltip: `${PREFIX}-tooltip`,
@@ -113,6 +114,25 @@ const Root = styled('div')((
         '&:disabled': {
             cursor: 'not-allowed',
             background: theme.palette.grey[50],
+        },
+    },
+
+
+    [`& .${classes.deleteButton}`]: {
+        borderColor: theme.palette.error.main,
+        color: theme.palette.error.main,
+        width: theme.spacing(20),
+        height: theme.spacing(5),
+        marginTop: theme.spacing(2.5),
+        marginLeft: theme.spacing(2),
+        '&:hover': {
+            borderColor: theme.palette.error.dark,
+            backgroundColor: theme.palette.error.light + '10', // subtle background on hover
+        },
+        '&:disabled': {
+            cursor: 'not-allowed',
+            borderColor: theme.palette.grey[300],
+            color: theme.palette.grey[400],
         },
     },
 

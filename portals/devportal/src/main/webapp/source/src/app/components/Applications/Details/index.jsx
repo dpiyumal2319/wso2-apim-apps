@@ -39,6 +39,7 @@ import ApiKeyManager from 'AppComponents/Shared/AppsAndKeys/ApiKeyManager';
 import classNames from 'classnames';
 import Paper from '@mui/material/Paper';
 import Subscriptions from './Subscriptions';
+import SubscriptionKeys from './SubscriptionKeys';
 import InfoBar from './InfoBar';
 import Overview from './Overview';
 
@@ -443,6 +444,19 @@ class Details extends Component {
                         open
                         id='left-menu-subscriptions'
                     />
+                    <LeftMenuItem
+                        text={(
+                            <FormattedMessage
+                                id='Applications.Details.menu.subscription.keys'
+                                defaultMessage='Subscription Keys'
+                            />
+                        )}
+                        iconText='productionkeys'
+                        route='subscription-keys'
+                        to={pathPrefix + '/subscription-keys'}
+                        open
+                        id='left-menu-subscription-keys'
+                    />
                 </nav>
                 <Box className={classes.content}>
                     <InfoBar
@@ -482,6 +496,12 @@ class Details extends Component {
                                 path='/applications/:applicationId/subscriptions'
                                 render={() => (
                                     <Subscriptions application={application} getApplication={this.getApplication} />
+                                )}
+                            />
+                            <Route
+                                path='/applications/:applicationId/subscription-keys'
+                                render={() => (
+                                    <SubscriptionKeys application={application} />
                                 )}
                             />
                             <Route component={ResourceNotFound} />

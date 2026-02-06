@@ -28,6 +28,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import WarningIcon from '@mui/icons-material/Warning';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
+import ConfirmDialog from 'AppComponents/Shared/ConfirmDialog';
 import { ApiContext } from '../../Apis/Details/ApiContext';
 import { getCredentialRenderer, getInvocationRenderer } from '../../Apis/Details/Credentials/federated/CredentialRendererRegistry';
 import { getTryOutConfig } from '../../Apis/Details/Credentials/federated/TryOutConfigProvider';
@@ -44,6 +45,10 @@ const FederatedDetailsPanel = (props) => {
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [editableCredentialValue, setEditableCredentialValue] = useState('');
+    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+    const [confirmDialogType, setConfirmDialogType] = useState(null); // 'regenerate' or 'delete'
+    const [advAuthHeader, setAdvAuthHeaderInternal] = useState('');
 
     const apiClient = new Api();
 
@@ -72,7 +77,11 @@ const FederatedDetailsPanel = (props) => {
     }, [selectedSubscription]);
 
     const updateAuthValues = (info) => {
-        if (!info) return;
+        if (!info) {
+            setEditableCredentialValue('');
+            if (setAdvAuthHeaderValue) setAdvAuthHeaderValue('');
+            return;
+        }
 
         const credentialBody = info.credential?.body;
         const invocationBody = info.invocationInstruction?.body;
@@ -85,13 +94,21 @@ const FederatedDetailsPanel = (props) => {
         const tryOutConfig = getTryOutConfig(credentialBody, invocationBody);
 
         // Set header name from invocation schema
-        if (tryOutConfig.headerName && setAdvAuthHeader) {
-            setAdvAuthHeader(tryOutConfig.headerName);
+        if (tryOutConfig.headerName) {
+            setAdvAuthHeaderInternal(tryOutConfig.headerName);
+            if (setAdvAuthHeader) {
+                setAdvAuthHeader(tryOutConfig.headerName);
+            }
         }
 
-        // Only set value if credential is not masked (full value available)
-        if (info.credential && !info.credential.masked && tryOutConfig.headerValue && setAdvAuthHeaderValue) {
-            setAdvAuthHeaderValue(tryOutConfig.headerValue);
+        // Populate editable field with credential value
+        // If masked, sanitize non-ISO-8859-1 characters (like •) to 'X' for HTTP headers
+        const credValue = tryOutConfig.headerValue || '';
+        const sanitizedValue = credValue.replace(/[^\x00-\xFF]/g, 'X');
+        
+        setEditableCredentialValue(credValue); // Show original value in UI
+        if (setAdvAuthHeaderValue) {
+            setAdvAuthHeaderValue(sanitizedValue); // Use sanitized value for API calls
         }
     };
 
@@ -129,6 +146,49 @@ const FederatedDetailsPanel = (props) => {
             .finally(() => setActionLoading(false));
     };
 
+    const handleDelete = () => {
+        setActionLoading(true);
+        apiClient.deleteFederatedSubscription(selectedSubscription)
+            .then(() => {
+                setFedSubInfo(null);
+                setEditableCredentialValue('');
+                if (setAdvAuthHeaderValue) setAdvAuthHeaderValue('');
+                Alert.info('Credential deleted successfully');
+            })
+            .catch((error) => {
+                Alert.error('Failed to delete credential');
+                console.error(error);
+            })
+            .finally(() => setActionLoading(false));
+    };
+
+    const handleCredentialChange = (event) => {
+        const { value } = event.target;
+        setEditableCredentialValue(value);
+        // Sanitize non-ISO-8859-1 characters for HTTP headers
+        const sanitizedValue = value.replace(/[^\x00-\xFF]/g, 'X');
+        if (setAdvAuthHeaderValue) {
+            setAdvAuthHeaderValue(sanitizedValue);
+        }
+    };
+
+    const openConfirmDialog = (type) => {
+        setConfirmDialogType(type);
+        setConfirmDialogOpen(true);
+    };
+
+    const handleConfirmDialog = (confirmed) => {
+        setConfirmDialogOpen(false);
+        if (confirmed) {
+            if (confirmDialogType === 'regenerate') {
+                handleRegenerate();
+            } else if (confirmDialogType === 'delete') {
+                handleDelete();
+            }
+        }
+        setConfirmDialogType(null);
+    };
+
     const handleRetrieve = () => {
         setActionLoading(true);
         apiClient.retrieveFederatedCredential(selectedSubscription)
@@ -156,6 +216,7 @@ const FederatedDetailsPanel = (props) => {
     // Extract schemas from response bodies
     let credentialSchema = null;
     let invocationSchema = null;
+    let headerName = null;
 
     if (hasCredential && fedSubInfo.credential.body) {
         try {
@@ -170,6 +231,7 @@ const FederatedDetailsPanel = (props) => {
         try {
             const invocationData = JSON.parse(fedSubInfo.invocationInstruction.body);
             invocationSchema = invocationData.invocationSchema || null;
+            headerName = invocationData.headerName || null;
         } catch {
             // ignore parse errors
         }
@@ -314,6 +376,10 @@ const FederatedDetailsPanel = (props) => {
                                 <CredentialRenderer
                                     body={fedSubInfo.credential.body}
                                     masked={fedSubInfo.credential.masked}
+                                    editable={true}
+                                    value={editableCredentialValue}
+                                    onChange={handleCredentialChange}
+                                    headerName={headerName || advAuthHeader}
                                     actionButtons={{
                                         retrieve: isMasked && isRetrievable && (
                                             <Button
@@ -334,7 +400,7 @@ const FederatedDetailsPanel = (props) => {
                                         ),
                                         regenerate: (
                                             <Button
-                                                onClick={handleRegenerate}
+                                                onClick={() => openConfirmDialog('regenerate')}
                                                 variant='contained'
                                                 color='grey'
                                                 className={classes.genKeyButton}
@@ -349,7 +415,22 @@ const FederatedDetailsPanel = (props) => {
                                                 />
                                             </Button>
                                         ),
-                                        delete: null,
+                                        delete: (
+                                            <Button
+                                                onClick={() => openConfirmDialog('delete')}
+                                                variant='outlined'
+                                                color='error'
+                                                disabled={actionLoading}
+                                                style={{ marginLeft: 0 }}
+                                                className={classes.deleteButton}
+                                                id='delete-federated-credential'
+                                            >
+                                                <FormattedMessage
+                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.delete'
+                                                    defaultMessage='DELETE'
+                                                />
+                                            </Button>
+                                        ),
                                     }}
                                 />
                             </Grid>
@@ -374,6 +455,26 @@ const FederatedDetailsPanel = (props) => {
                     )}
                 </>
             )}
+            <ConfirmDialog
+                open={confirmDialogOpen}
+                title={
+                    confirmDialogType === 'regenerate'
+                        ? 'Regenerate Credential'
+                        : 'Delete Credential'
+                }
+                message={
+                    confirmDialogType === 'regenerate'
+                        ? 'Are you sure you want to regenerate this credential? The old credential will stop working immediately.'
+                        : 'Are you sure you want to delete this credential? This action cannot be undone.'
+                }
+                labelOk={
+                    confirmDialogType === 'regenerate'
+                        ? 'Regenerate'
+                        : 'Delete'
+                }
+                labelCancel='Cancel'
+                callback={handleConfirmDialog}
+            />
         </Box>
     );
 };
