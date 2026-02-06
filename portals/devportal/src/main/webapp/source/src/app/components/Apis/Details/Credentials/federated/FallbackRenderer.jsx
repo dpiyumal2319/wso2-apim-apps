@@ -19,10 +19,14 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import TextField from '@mui/material/TextField';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Alert from 'AppComponents/Shared/Alert';
 
-export default function FallbackRenderer({ body, actionButtons }) {
+export default function FallbackRenderer({
+    body, actionButtons, editable, value, onChange, headerName,
+}) {
     let formatted;
     try {
         const parsed = typeof body === 'string' ? JSON.parse(body) : body;
@@ -35,6 +39,35 @@ export default function FallbackRenderer({ body, actionButtons }) {
         navigator.clipboard.writeText(formatted);
         Alert.info('Copied to clipboard');
     };
+
+    if (editable) {
+        return (
+            <>
+                <TextField
+                    label='Credential'
+                    value={value || ''}
+                    onChange={onChange}
+                    fullWidth
+                    margin='normal'
+                    variant='outlined'
+                    InputProps={{
+                        startAdornment: headerName ? (
+                            <InputAdornment position='start'>
+                                {`${headerName}:`}
+                            </InputAdornment>
+                        ) : null,
+                    }}
+                />
+                {actionButtons && (
+                    <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                        {actionButtons.retrieve}
+                        {actionButtons.regenerate}
+                        {actionButtons.delete}
+                    </Box>
+                )}
+            </>
+        );
+    }
 
     return (
         <>
@@ -61,7 +94,7 @@ export default function FallbackRenderer({ body, actionButtons }) {
                 {formatted}
             </Box>
             {actionButtons && (
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
                     {actionButtons.retrieve}
                     {actionButtons.regenerate}
                     {actionButtons.delete}
@@ -78,8 +111,16 @@ FallbackRenderer.propTypes = {
         regenerate: PropTypes.node,
         delete: PropTypes.node,
     }),
+    editable: PropTypes.bool,
+    value: PropTypes.string,
+    onChange: PropTypes.func,
+    headerName: PropTypes.string,
 };
 
 FallbackRenderer.defaultProps = {
     actionButtons: null,
+    editable: false,
+    value: undefined,
+    onChange: null,
+    headerName: null,
 };
