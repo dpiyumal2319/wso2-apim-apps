@@ -1304,7 +1304,8 @@ export default class API extends Resource {
 
     createFederatedSubscription(subscriptionId, selectedOption) {
         return this.client.then((client) => {
-            const requestBody = selectedOption ? { selectedOption } : undefined;
+            // Always send a JSON body so Content-Type: application/json is set (CXF requires it)
+            const requestBody = selectedOption ? { selectedOption } : {};
             return client.apis['Federated Subscriptions'].createFederatedSubscription(
                 { subscriptionId },
                 { requestBody },

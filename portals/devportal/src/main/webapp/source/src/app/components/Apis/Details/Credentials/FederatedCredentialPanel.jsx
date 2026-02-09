@@ -187,7 +187,11 @@ const FederatedCredentialPanel = (props) => {
                     />
                 </Typography>
                 {optionsLoading && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Box
+                        sx={{
+                            display: 'flex', alignItems: 'center', gap: 1, mb: 2,
+                        }}
+                    >
                         <CircularProgress size={16} />
                         <Typography variant='body2' color='text.secondary'>
                             <FormattedMessage
