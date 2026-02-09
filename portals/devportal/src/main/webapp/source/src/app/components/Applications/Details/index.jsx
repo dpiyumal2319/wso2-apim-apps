@@ -448,7 +448,7 @@ class Details extends Component {
                         text={(
                             <FormattedMessage
                                 id='Applications.Details.menu.subscription.keys'
-                                defaultMessage='Subscription Keys'
+                                defaultMessage='API Credentials'
                             />
                         )}
                         iconText='productionkeys'

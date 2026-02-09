@@ -27,6 +27,7 @@ import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { getCredentialRenderer, getInvocationRenderer } from './federated/CredentialRendererRegistry';
+import TierSelectorRenderer from './federated/TierSelectorRenderer';
 
 const PREFIX = 'FederatedCredentialPanel';
 
@@ -38,6 +39,7 @@ const classes = {
 const FederatedCredentialPanel = (props) => {
     const {
         subscriptionId,
+        apiId,
         credentialSchema,
         invocationSchema,
         gatewayType,
@@ -45,6 +47,9 @@ const FederatedCredentialPanel = (props) => {
     const [loading, setLoading] = useState(true);
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
+    const [subscriptionOptions, setSubscriptionOptions] = useState(null);
+    const [selectedOption, setSelectedOption] = useState(null);
+    const [optionsLoading, setOptionsLoading] = useState(false);
 
     const api = new Api();
 
@@ -65,15 +70,49 @@ const FederatedCredentialPanel = (props) => {
             .finally(() => setLoading(false));
     };
 
+    const fetchSubscriptionOptions = () => {
+        if (!apiId) return;
+        setOptionsLoading(true);
+        api.getApiSubscriptionSupport(apiId)
+            .then((response) => {
+                const { body } = response;
+                if (body && body.subscriptionOptions) {
+                    setSubscriptionOptions(body.subscriptionOptions);
+                    // Auto-select if only one option
+                    try {
+                        const parsed = JSON.parse(body.subscriptionOptions.body);
+                        if (parsed.options && parsed.options.length === 1) {
+                            setSelectedOption(JSON.stringify(parsed.options[0]));
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error('Failed to fetch subscription options', error);
+            })
+            .finally(() => setOptionsLoading(false));
+    };
+
     useEffect(() => {
         fetchCredential();
     }, [subscriptionId]);
 
+    // Fetch subscription options when no credential exists yet
+    useEffect(() => {
+        if (!loading && !fedSubInfo) {
+            fetchSubscriptionOptions();
+        }
+    }, [loading, fedSubInfo, apiId]);
+
     const handleCreate = () => {
         setActionLoading(true);
-        api.createFederatedSubscription(subscriptionId)
+        api.createFederatedSubscription(subscriptionId, selectedOption)
             .then((response) => {
                 setFedSubInfo(response.body);
+                setSubscriptionOptions(null);
+                setSelectedOption(null);
                 Alert.info('Credential created successfully');
             })
             .catch((error) => {
@@ -136,6 +175,9 @@ const FederatedCredentialPanel = (props) => {
     }
 
     if (!fedSubInfo) {
+        const hasOptions = subscriptionOptions && subscriptionOptions.body;
+        const requiresSelection = hasOptions && !selectedOption;
+
         return (
             <Box sx={{ p: 2 }}>
                 <Typography variant='body2' sx={{ mb: 2 }}>
@@ -144,11 +186,29 @@ const FederatedCredentialPanel = (props) => {
                         defaultMessage='No credential has been generated for this subscription yet.'
                     />
                 </Typography>
+                {optionsLoading && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant='body2' color='text.secondary'>
+                            <FormattedMessage
+                                id='Apis.Details.Credentials.FederatedCredentialPanel.loading.options'
+                                defaultMessage='Loading subscription options...'
+                            />
+                        </Typography>
+                    </Box>
+                )}
+                {hasOptions && (
+                    <TierSelectorRenderer
+                        body={subscriptionOptions.body}
+                        selectedOption={selectedOption}
+                        onSelect={setSelectedOption}
+                    />
+                )}
                 <Button
                     variant='contained'
                     color='primary'
                     onClick={handleCreate}
-                    disabled={actionLoading}
+                    disabled={actionLoading || optionsLoading || requiresSelection}
                 >
                     {actionLoading ? <CircularProgress size={20} /> : (
                         <FormattedMessage
@@ -277,10 +337,12 @@ const FederatedCredentialPanel = (props) => {
 
 FederatedCredentialPanel.propTypes = {
     subscriptionId: PropTypes.string.isRequired,
+    apiId: PropTypes.string,
     gatewayType: PropTypes.string,
 };
 
 FederatedCredentialPanel.defaultProps = {
+    apiId: null,
     gatewayType: null,
 };
 

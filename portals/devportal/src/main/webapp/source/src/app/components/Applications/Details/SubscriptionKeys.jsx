@@ -122,19 +122,15 @@ const Root = styled('div')((
             width: '50px',
         },
         '& th:nth-of-type(2)': {
-            width: '35%',
+            width: '50%',
             minWidth: '200px',
         },
         '& th:nth-of-type(3)': {
-            width: '20%',
+            width: '25%',
             minWidth: '120px',
         },
         '& th:nth-of-type(4)': {
-            width: '20%',
-            minWidth: '120px',
-        },
-        '& th:nth-of-type(5)': {
-            width: '15%',
+            width: '25%',
             minWidth: '100px',
         },
         tableLayout: 'fixed',
@@ -206,7 +202,7 @@ const SubscriptionKeys = ({ application }) => {
                 >
                     <FormattedMessage
                         id='Applications.Details.SubscriptionKeys.title'
-                        defaultMessage='Subscription Keys'
+                        defaultMessage='API Credentials'
                     />
                 </Typography>
 
@@ -269,12 +265,6 @@ const SubscriptionKeys = ({ application }) => {
                                                     <FormattedMessage
                                                         id='Applications.Details.SubscriptionKeys.column.api'
                                                         defaultMessage='API'
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormattedMessage
-                                                        id='Applications.Details.SubscriptionKeys.column.gateway'
-                                                        defaultMessage='Gateway Type'
                                                     />
                                                 </TableCell>
                                                 <TableCell>

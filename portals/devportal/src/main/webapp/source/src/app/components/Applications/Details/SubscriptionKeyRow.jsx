@@ -27,7 +27,6 @@ import Button from '@mui/material/Button';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import Chip from '@mui/material/Chip';
 import { Link } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import FederatedCredentialPanel from 'AppComponents/Apis/Details/Credentials/FederatedCredentialPanel';
@@ -51,20 +50,6 @@ const SubscriptionKeyRow = ({
         id: apiId,
     } = apiInfo;
 
-    const getStatusColor = (status) => {
-        switch (status?.toUpperCase()) {
-            case 'PUBLISHED':
-                return 'success';
-            case 'BLOCKED':
-            case 'DEPRECATED':
-                return 'warning';
-            case 'RETIRED':
-                return 'error';
-            default:
-                return 'default';
-        }
-    };
-
     return (
         <>
             <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
@@ -84,20 +69,7 @@ const SubscriptionKeyRow = ({
                         {apiVersion}
                     </Link>
                 </TableCell>
-                <TableCell>
-                    <Chip
-                        label={gatewayVendor?.toUpperCase()}
-                        size='small'
-                        variant='outlined'
-                    />
-                </TableCell>
-                <TableCell>
-                    <Chip
-                        label={lifeCycleStatus}
-                        size='small'
-                        color={getStatusColor(lifeCycleStatus)}
-                    />
-                </TableCell>
+                <TableCell>{lifeCycleStatus}</TableCell>
                 <TableCell>
                     <Button
                         component={Link}
@@ -114,11 +86,12 @@ const SubscriptionKeyRow = ({
                 </TableCell>
             </TableRow>
             <TableRow>
-                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={5}>
+                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
                     <Collapse in={expanded} timeout='auto' unmountOnExit>
                         <Box sx={{ margin: 1 }}>
                             <FederatedCredentialPanel
                                 subscriptionId={subscriptionId}
+                                apiId={apiId}
                                 gatewayType={gatewayVendor}
                             />
                         </Box>
