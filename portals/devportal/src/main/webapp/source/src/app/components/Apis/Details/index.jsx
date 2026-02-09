@@ -345,6 +345,23 @@ class DetailsLegacy extends React.Component {
             promisedApi
                 .then((api) => {
                     this.setState({ api: api.body });
+
+                    // For federated APIs, fetch subscription support info
+                    if (api.body.gatewayVendor && api.body.gatewayVendor !== 'wso2') {
+                        const restApi = new Api();
+                        restApi.getApiSubscriptionSupport(api.body.id)
+                            .then((response) => {
+                                this.setState({ requiresSubscription: response.body.requiresSubscription });
+                            })
+                            .catch((error) => {
+                                console.error('Error fetching subscription support:', error);
+                                // On error, assume no subscription required (fail-safe)
+                                this.setState({ requiresSubscription: false });
+                            });
+                    } else {
+                        // WSO2 gateway - subscriptions work as usual
+                        this.setState({ requiresSubscription: null });
+                    }
                 })
                 .catch((error) => {
                     const { status, response } = error;
@@ -433,6 +450,7 @@ class DetailsLegacy extends React.Component {
             breadcrumbDocument: '',
             tryOutExpanded: true,
             apiChatEnabled: false,
+            requiresSubscription: null, // null = loading, true = requires, false = doesn't require
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -537,7 +555,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, requiresSubscription,
         } = this.state;
         const {
             custom: {
@@ -629,7 +647,8 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && !isSubValidationDisabled && (
+                            {user && showCredentials && !isSubValidationDisabled
+                                && !(api.gatewayVendor && api.gatewayVendor !== 'wso2' && requiresSubscription === false) && (
                                 <>
 
                                     <LeftMenuItem

@@ -79,7 +79,11 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
                     defaultMessage='Select a Subscription Plan'
                 />
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+            <Box
+                sx={{
+                    display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1,
+                }}
+            >
                 {options.map((option) => {
                     const isSelected = selectedId === option.id;
                     return (

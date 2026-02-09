@@ -412,7 +412,7 @@ class Credentials extends React.Component {
     render() {
         const { intl } = this.props;
         const {
-            api, updateSubscriptionData, applicationsAvailable, subscribedApplications,
+            api, updateSubscriptionData, applicationsAvailable, subscribedApplications, requiresSubscription,
         } = this.context;
         const {
             selectedKeyType,
@@ -432,6 +432,21 @@ class Credentials extends React.Component {
         const isSetAllorResidentKeyManagers = (api.keyManagers && api.keyManagers.includes('all'))
             || (api.keyManagers && api.keyManagers.includes('Resident Key Manager'));
         const renderCredentialInfo = () => {
+            // Safety net: For federated APIs that don't require subscriptions
+            if (isFederated && requiresSubscription === false) {
+                return (
+                    <InlineMessage type='info' className={classes.dialogContainer}>
+                        <Typography component='p'>
+                            <FormattedMessage
+                                id='Apis.Details.Credentials.no.subscription.required'
+                                defaultMessage={'This {type} does not require subscription credentials. '
+                                        + 'You can invoke it directly without subscribing.'}
+                                values={{ type: getTypeToDisplay(api.type) }}
+                            />
+                        </Typography>
+                    </InlineMessage>
+                );
+            }
             if (isOnlyMutualSSL || isOnlyBasicAuth) {
                 return (
                     <InlineMessage type='info' className={classes.dialogContainer}>
@@ -630,6 +645,7 @@ class Credentials extends React.Component {
                                                 isFederated={!!isFederated}
                                                 gatewayType={api.gatewayType}
                                                 apiId={api.id}
+                                                requiresSubscription={requiresSubscription}
                                             />
                                         ))}
                                     </table>
