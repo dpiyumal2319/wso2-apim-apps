@@ -629,6 +629,7 @@ class Credentials extends React.Component {
                                                 hashEnabled={hashEnabled}
                                                 isFederated={!!isFederated}
                                                 gatewayType={api.gatewayType}
+                                                apiId={api.id}
                                             />
                                         ))}
                                     </table>

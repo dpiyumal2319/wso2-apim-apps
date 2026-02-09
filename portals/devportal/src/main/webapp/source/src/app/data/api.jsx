@@ -987,10 +987,21 @@ export default class API extends Resource {
         });
     }
 
-    createFederatedSubscription(subscriptionId) {
+    getApiSubscriptionSupport(apiId) {
         return this.client.then((client) => {
+            return client.apis.APIs.getApiSubscriptionSupport(
+                { apiId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    createFederatedSubscription(subscriptionId, selectedOption) {
+        return this.client.then((client) => {
+            const requestBody = selectedOption ? { selectedOption } : undefined;
             return client.apis['Federated Subscriptions'].createFederatedSubscription(
                 { subscriptionId },
+                { requestBody },
                 this._requestMetaData(),
             );
         });
