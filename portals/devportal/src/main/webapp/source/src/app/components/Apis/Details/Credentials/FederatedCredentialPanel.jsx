@@ -26,8 +26,11 @@ import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { getCredentialRenderer, getInvocationRenderer } from './federated/CredentialRendererRegistry';
-import TierSelectorRenderer from './federated/TierSelectorRenderer';
+import {
+    getCredentialRenderer,
+    getInvocationRenderer,
+    getSubscriptionOptionsRenderer,
+} from './federated/CredentialRendererRegistry';
 
 const PREFIX = 'FederatedCredentialPanel';
 
@@ -40,9 +43,6 @@ const FederatedCredentialPanel = (props) => {
     const {
         subscriptionId,
         apiId,
-        credentialSchema,
-        invocationSchema,
-        gatewayType,
     } = props;
     const [loading, setLoading] = useState(true);
     const [fedSubInfo, setFedSubInfo] = useState(null);
@@ -52,6 +52,7 @@ const FederatedCredentialPanel = (props) => {
     const [optionsLoading, setOptionsLoading] = useState(false);
 
     const api = new Api();
+    const OptionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
 
     const fetchCredential = () => {
         setLoading(true);
@@ -201,8 +202,8 @@ const FederatedCredentialPanel = (props) => {
                         </Typography>
                     </Box>
                 )}
-                {hasOptions && (
-                    <TierSelectorRenderer
+                {hasOptions && OptionsRenderer && (
+                    <OptionsRenderer
                         body={subscriptionOptions.body}
                         selectedOption={selectedOption}
                         onSelect={setSelectedOption}
@@ -225,33 +226,14 @@ const FederatedCredentialPanel = (props) => {
         );
     }
 
-    const { credential, invocationInstruction, gatewayType: responseGatewayType } = fedSubInfo;
-    const effectiveGatewayType = responseGatewayType || gatewayType;
+    const { credential, invocationInstruction } = fedSubInfo;
 
-    // Extract schemas from response bodies
-    let extractedCredentialSchema = credentialSchema;
-    let extractedInvocationSchema = invocationSchema;
+    // Read schema names directly from DTO envelopes (no body parsing)
+    const extractedCredentialSchema = credential?.schemaName;
+    const extractedInvocationSchema = invocationInstruction?.schemaName;
 
-    if (credential && credential.body) {
-        try {
-            const credentialData = JSON.parse(credential.body);
-            extractedCredentialSchema = credentialData.credentialType || extractedCredentialSchema;
-        } catch {
-            // ignore parse errors
-        }
-    }
-
-    if (invocationInstruction && invocationInstruction.body) {
-        try {
-            const invocationData = JSON.parse(invocationInstruction.body);
-            extractedInvocationSchema = invocationData.invocationSchema || extractedInvocationSchema;
-        } catch {
-            // ignore parse errors
-        }
-    }
-
-    const CredentialRenderer = getCredentialRenderer(effectiveGatewayType, extractedCredentialSchema);
-    const InvocationRenderer = getInvocationRenderer(effectiveGatewayType, extractedInvocationSchema);
+    const CredentialRenderer = getCredentialRenderer(extractedCredentialSchema);
+    const InvocationRenderer = getInvocationRenderer(extractedInvocationSchema);
 
     const actionButtons = {
         retrieve: credential && credential.masked && credential.isValueRetrievable && (
@@ -342,12 +324,10 @@ const FederatedCredentialPanel = (props) => {
 FederatedCredentialPanel.propTypes = {
     subscriptionId: PropTypes.string.isRequired,
     apiId: PropTypes.string,
-    gatewayType: PropTypes.string,
 };
 
 FederatedCredentialPanel.defaultProps = {
     apiId: null,
-    gatewayType: null,
 };
 
 export default FederatedCredentialPanel;

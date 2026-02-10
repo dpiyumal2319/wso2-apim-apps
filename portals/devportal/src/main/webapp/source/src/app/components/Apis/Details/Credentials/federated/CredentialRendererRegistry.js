@@ -19,43 +19,66 @@ import PrimarySecondaryKeyPairRenderer from './PrimarySecondaryKeyPairRenderer';
 import HeaderWithQueryFallbackRenderer from './HeaderWithQueryFallbackRenderer';
 import OpaqueApiKeyRenderer from './OpaqueApiKeyRenderer';
 import HeaderBasedRenderer from './HeaderBasedRenderer';
+import TierSelectorRenderer from './TierSelectorRenderer';
 import FallbackRenderer from './FallbackRenderer';
 
-// Map of gatewayType:schemaName -> Renderer component
+// Map of schemaName -> Renderer component (gateway type removed)
 const credentialRenderers = {
-    'AZURE:primary-secondary-key-pair': PrimarySecondaryKeyPairRenderer,
-    'AWS:opaque-api-key': OpaqueApiKeyRenderer,
+    'primary-secondary-key-pair': PrimarySecondaryKeyPairRenderer,
+    'opaque-api-key': OpaqueApiKeyRenderer,
 };
 
 const invocationRenderers = {
-    'AZURE:header-with-query-fallback': HeaderWithQueryFallbackRenderer,
-    'AWS:header-based': HeaderBasedRenderer,
+    'header-with-query-fallback': HeaderWithQueryFallbackRenderer,
+    'header-based': HeaderBasedRenderer,
+};
+
+const subscriptionOptionsRenderers = {
+    'tier-selector': TierSelectorRenderer,
 };
 
 /**
- * Get credential renderer based on gateway type and schema name
- * @param {string} gatewayType - Gateway type (e.g., 'AZURE', 'KONG')
- * @param {string} schemaName - Schema name from credentialSchema
+ * Get credential renderer based on schema name only
+ * @param {string} schemaName - Schema name from FederatedCredential.schemaName
  * @returns {Component} Renderer component or FallbackRenderer
  */
-export function getCredentialRenderer(gatewayType, schemaName) {
-    if (!gatewayType || !schemaName) {
+export function getCredentialRenderer(schemaName) {
+    if (!schemaName) {
         return FallbackRenderer;
     }
-    const key = `${gatewayType.toUpperCase()}:${schemaName}`;
-    return credentialRenderers[key] || FallbackRenderer;
+    // Type-safety check: warn if invocation schema accidentally passed
+    if (invocationRenderers[schemaName]) {
+        console.warn(`Schema "${schemaName}" is an invocation schema, not a credential schema`);
+        return FallbackRenderer;
+    }
+    return credentialRenderers[schemaName] || FallbackRenderer;
 }
 
 /**
- * Get invocation renderer based on gateway type and schema name
- * @param {string} gatewayType - Gateway type (e.g., 'AZURE', 'KONG')
- * @param {string} schemaName - Schema name from invocationSchema
+ * Get invocation renderer based on schema name only
+ * @param {string} schemaName - Schema name from InvocationInstruction.schemaName
  * @returns {Component} Renderer component or FallbackRenderer
  */
-export function getInvocationRenderer(gatewayType, schemaName) {
-    if (!gatewayType || !schemaName) {
+export function getInvocationRenderer(schemaName) {
+    if (!schemaName) {
         return FallbackRenderer;
     }
-    const key = `${gatewayType.toUpperCase()}:${schemaName}`;
-    return invocationRenderers[key] || FallbackRenderer;
+    // Type-safety check: warn if credential schema accidentally passed
+    if (credentialRenderers[schemaName]) {
+        console.warn(`Schema "${schemaName}" is a credential schema, not an invocation schema`);
+        return FallbackRenderer;
+    }
+    return invocationRenderers[schemaName] || FallbackRenderer;
+}
+
+/**
+ * Get subscription options renderer based on schema name
+ * @param {string} schemaName - Schema name from FederatedSubscriptionOptions.schemaName
+ * @returns {Component} Renderer component or null
+ */
+export function getSubscriptionOptionsRenderer(schemaName) {
+    if (!schemaName) {
+        return null;
+    }
+    return subscriptionOptionsRenderers[schemaName] || null;
 }

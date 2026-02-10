@@ -118,13 +118,20 @@ const FederatedDetailsPanel = (props) => {
 
         const credentialBody = info.credential?.body;
         const invocationBody = info.invocationInstruction?.body;
+        const credentialSchemaName = info.credential?.schemaName;
+        const invocationSchemaName = info.invocationInstruction?.schemaName;
 
         // Use schema-based TryOutConfigProvider to extract values
         // This automatically handles different credential types:
         // - opaque-api-key (AWS, Kong) → extracts 'value' field
         // - primary-secondary-key-pair (Azure) → extracts 'primaryKey' field
         // - jwt-bearer (future) → extracts 'token' field
-        const tryOutConfig = getTryOutConfig(credentialBody, invocationBody);
+        const tryOutConfig = getTryOutConfig(
+            credentialBody, 
+            invocationBody, 
+            credentialSchemaName, 
+            invocationSchemaName
+        );
 
         // Set header name from invocation schema
         if (tryOutConfig.headerName) {
@@ -248,32 +255,12 @@ const FederatedDetailsPanel = (props) => {
 
     const gatewayType = fedSubInfo && fedSubInfo.gatewayType;
 
-    // Extract schemas from response bodies
-    let credentialSchema = null;
-    let invocationSchema = null;
-    let headerName = null;
+    // Read schema names directly from DTO envelopes (no body parsing)
+    const credentialSchema = fedSubInfo?.credential?.schemaName || null;
+    const invocationSchema = fedSubInfo?.invocationInstruction?.schemaName || null;
 
-    if (hasCredential && fedSubInfo.credential.body) {
-        try {
-            const credentialData = JSON.parse(fedSubInfo.credential.body);
-            credentialSchema = credentialData.credentialType || null;
-        } catch {
-            // ignore parse errors
-        }
-    }
-
-    if (fedSubInfo && fedSubInfo.invocationInstruction && fedSubInfo.invocationInstruction.body) {
-        try {
-            const invocationData = JSON.parse(fedSubInfo.invocationInstruction.body);
-            invocationSchema = invocationData.invocationSchema || null;
-            headerName = invocationData.headerName || null;
-        } catch {
-            // ignore parse errors
-        }
-    }
-
-    const CredentialRenderer = getCredentialRenderer(gatewayType, credentialSchema);
-    const InvocationRenderer = getInvocationRenderer(gatewayType, invocationSchema);
+    const CredentialRenderer = getCredentialRenderer(credentialSchema);
+    const InvocationRenderer = getInvocationRenderer(invocationSchema);
 
     // If API doesn't require subscriptions, show info message instead of credential management
     if (requiresSubscription === false) {
@@ -450,7 +437,7 @@ const FederatedDetailsPanel = (props) => {
                                     editable={true}
                                     value={editableCredentialValue}
                                     onChange={handleCredentialChange}
-                                    headerName={headerName || advAuthHeader}
+                                    headerName={advAuthHeader}
                                     actionButtons={{
                                         retrieve: isMasked && isRetrievable && (
                                             <Button

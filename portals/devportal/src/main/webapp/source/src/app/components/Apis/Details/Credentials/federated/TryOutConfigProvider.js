@@ -1,7 +1,7 @@
 /**
  * Schema-based TryOut configuration extraction.
  *
- * Uses credentialType and invocationSchema from opaque bodies to select extractors.
+ * Uses schemaName from DTO envelopes to select extractors (no body parsing).
  * This allows new gateways to reuse existing schemas without code changes.
  *
  * To add a new credential schema:
@@ -13,12 +13,12 @@
  *   2. New gateway connectors using this schema work automatically
  */
 
-// ============ CREDENTIAL EXTRACTORS (by credentialType) ============
+// ============ CREDENTIAL EXTRACTORS (by schemaName) ============
 
 /**
  * Extracts value from 'opaque-api-key' schema credentials.
  * Used by: AWS, Kong (key-auth), potentially others
- * Body format: { credentialType: 'opaque-api-key', value: '...', headerName: '...' }
+ * Body format: { value: '...', headerName: '...' }
  */
 const opaqueApiKeyExtractor = (credentialBody) => {
     try {
@@ -31,7 +31,7 @@ const opaqueApiKeyExtractor = (credentialBody) => {
 /**
  * Extracts value from 'primary-secondary-key-pair' schema credentials.
  * Used by: Azure APIM
- * Body format: { credentialType: 'primary-secondary-key-pair', primaryKey: '...', secondaryKey: '...' }
+ * Body format: { primaryKey: '...', secondaryKey: '...' }
  */
 const primarySecondaryKeyExtractor = (credentialBody) => {
     try {
@@ -44,7 +44,7 @@ const primarySecondaryKeyExtractor = (credentialBody) => {
 /**
  * Extracts value from 'jwt-bearer' schema credentials.
  * Used by: Future JWT-based gateways (Envoy with JWT, K8s Istio, etc.)
- * Body format: { credentialType: 'jwt-bearer', token: '...', expiresAt: '...' }
+ * Body format: { token: '...', expiresAt: '...' }
  */
 const jwtBearerExtractor = (credentialBody) => {
     try {
@@ -178,6 +178,8 @@ const invocationExtractors = {
  *
  * @param {string} credentialBody - Opaque JSON credential body
  * @param {string} invocationBody - Opaque JSON invocation body
+ * @param {string} credentialSchemaName - Schema name from DTO envelope
+ * @param {string} invocationSchemaName - Schema name from DTO envelope
  * @returns {Object} TryOut configuration:
  *   - headerName: Header name to use (e.g., 'x-api-key', 'Ocp-Apim-Subscription-Key')
  *   - headerValue: Credential value to send
@@ -185,28 +187,12 @@ const invocationExtractors = {
  *   - supportsQueryParam: Whether query param fallback is supported
  *   - queryParamName: Query param name if supported
  */
-export function getTryOutConfig(credentialBody, invocationBody) {
-    // 1. Extract credential type and invocation schema from bodies
-    let credentialType = null;
-    let invocationSchema = null;
+export function getTryOutConfig(credentialBody, invocationBody, credentialSchemaName, invocationSchemaName) {
+    // 1. Select extractors based on schema names from DTO envelopes
+    const credExtractor = credentialExtractors[credentialSchemaName] || fallbackCredentialExtractor;
+    const invExtractor = invocationExtractors[invocationSchemaName] || fallbackInvocationExtractor;
 
-    try {
-        const credParsed = typeof credentialBody === 'string'
-            ? JSON.parse(credentialBody) : credentialBody;
-        credentialType = credParsed?.credentialType;
-    } catch { /* ignore */ }
-
-    try {
-        const invParsed = typeof invocationBody === 'string'
-            ? JSON.parse(invocationBody) : invocationBody;
-        invocationSchema = invParsed?.invocationSchema;
-    } catch { /* ignore */ }
-
-    // 2. Select extractors based on schemas
-    const credExtractor = credentialExtractors[credentialType] || fallbackCredentialExtractor;
-    const invExtractor = invocationExtractors[invocationSchema] || fallbackInvocationExtractor;
-
-    // 3. Extract values
+    // 2. Extract values
     const credentialValue = credExtractor(credentialBody);
     const invocationConfig = invExtractor(invocationBody);
 
