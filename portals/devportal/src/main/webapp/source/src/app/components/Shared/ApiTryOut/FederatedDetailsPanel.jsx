@@ -32,7 +32,7 @@ import ConfirmDialog from 'AppComponents/Shared/ConfirmDialog';
 import { ApiContext } from '../../Apis/Details/ApiContext';
 import { getCredentialRenderer, getInvocationRenderer } from '../../Apis/Details/Credentials/federated/CredentialRendererRegistry';
 import { getTryOutConfig } from '../../Apis/Details/Credentials/federated/TryOutConfigProvider';
-import TierSelectorRenderer from '../../Apis/Details/Credentials/federated/TierSelectorRenderer';
+import SubscriptionPlansRenderer from '../../Apis/Details/Credentials/federated/SubscriptionPlansRenderer';
 
 const FederatedDetailsPanel = (props) => {
     const {
@@ -94,8 +94,8 @@ const FederatedDetailsPanel = (props) => {
                         // Auto-select if only one option
                         try {
                             const parsed = JSON.parse(body.subscriptionOptions.body);
-                            if (parsed.options && parsed.options.length === 1) {
-                                setSelectedOption(JSON.stringify(parsed.options[0]));
+                            if (parsed.plans && parsed.plans.length === 1) {
+                                setSelectedOption(JSON.stringify(parsed.plans[0]));
                             }
                         } catch {
                             // ignore
@@ -237,9 +237,9 @@ const FederatedDetailsPanel = (props) => {
             .then((response) => {
                 setFedSubInfo((prev) => ({
                     ...prev,
-                    credential: response.body,
+                    credential: response.body.credential,
                 }));
-                updateAuthValues({ ...fedSubInfo, credential: response.body });
+                updateAuthValues({ ...fedSubInfo, credential: response.body.credential });
             })
             .catch((error) => {
                 Alert.error('Failed to retrieve credential');
@@ -386,7 +386,7 @@ const FederatedDetailsPanel = (props) => {
                             )}
                             {!optionsLoading && subscriptionOptions && subscriptionOptions.body && (
                                 <Box mb={2} width='100%'>
-                                    <TierSelectorRenderer
+                                    <SubscriptionPlansRenderer
                                         body={subscriptionOptions.body}
                                         selectedOption={selectedOption}
                                         onSelect={setSelectedOption}

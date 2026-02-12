@@ -26,22 +26,13 @@ import Chip from '@mui/material/Chip';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { FormattedMessage } from 'react-intl';
 
-function formatQuota(quotaLimit, quotaPeriod) {
-    if (!quotaLimit) return null;
-    const period = quotaPeriod ? quotaPeriod.toLowerCase() : '';
-    return `${quotaLimit.toLocaleString()} requests / ${period}`;
+function formatLimitLabel(key, value) {
+    // Display raw key-value pairs without special formatting
+    const label = key.replace(/([A-Z])/g, ' $1').trim();
+    return `${label}: ${value}`;
 }
 
-function formatRateLimit(rateLimit, burstLimit) {
-    if (!rateLimit) return null;
-    let text = `${rateLimit} req/s`;
-    if (burstLimit) {
-        text += ` (burst: ${burstLimit})`;
-    }
-    return text;
-}
-
-export default function TierSelectorRenderer({ body, selectedOption, onSelect }) {
+export default function SubscriptionPlansRenderer({ body, selectedOption, onSelect }) {
     let parsed;
     try {
         parsed = typeof body === 'string' ? JSON.parse(body) : body;
@@ -56,9 +47,10 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
         );
     }
 
-    const options = parsed.options || [];
+    const plans = parsed.plans || [];
+    const optionName = parsed.optionName || 'Plan';
 
-    if (options.length === 0) {
+    if (plans.length === 0) {
         return null;
     }
 
@@ -76,7 +68,8 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
             <Typography variant='subtitle2' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.Credentials.federated.TierSelector.title'
-                    defaultMessage='Select a Subscription Plan'
+                    defaultMessage='Select a {optionName}'
+                    values={{ optionName }}
                 />
             </Typography>
             <Box
@@ -84,11 +77,11 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
                     display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1,
                 }}
             >
-                {options.map((option) => {
-                    const isSelected = selectedId === option.id;
+                {plans.map((plan) => {
+                    const isSelected = selectedId === plan.id;
                     return (
                         <Card
-                            key={option.id}
+                            key={plan.id}
                             variant='outlined'
                             sx={{
                                 minWidth: 200,
@@ -99,7 +92,7 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
                                 position: 'relative',
                             }}
                         >
-                            <CardActionArea onClick={() => onSelect(JSON.stringify(option))}>
+                            <CardActionArea onClick={() => onSelect(JSON.stringify(plan))}>
                                 <CardContent>
                                     {isSelected && (
                                         <CheckCircleIcon
@@ -109,29 +102,25 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
                                         />
                                     )}
                                     <Typography variant='subtitle1' gutterBottom>
-                                        {option.name}
+                                        {plan.name}
                                     </Typography>
-                                    {option.description && (
+                                    {plan.description && (
                                         <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-                                            {option.description}
+                                            {plan.description}
                                         </Typography>
                                     )}
-                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                        {option.rateLimit && (
-                                            <Chip
-                                                label={formatRateLimit(option.rateLimit, option.burstLimit)}
-                                                size='small'
-                                                variant='outlined'
-                                            />
-                                        )}
-                                        {option.quotaLimit && (
-                                            <Chip
-                                                label={formatQuota(option.quotaLimit, option.quotaPeriod)}
-                                                size='small'
-                                                variant='outlined'
-                                            />
-                                        )}
-                                    </Box>
+                                    {plan.limits && Object.keys(plan.limits).length > 0 && (
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {Object.entries(plan.limits).map(([key, value]) => (
+                                                <Chip
+                                                    key={key}
+                                                    label={formatLimitLabel(key, value)}
+                                                    size='small'
+                                                    variant='outlined'
+                                                />
+                                            ))}
+                                        </Box>
+                                    )}
                                 </CardContent>
                             </CardActionArea>
                         </Card>
@@ -142,12 +131,12 @@ export default function TierSelectorRenderer({ body, selectedOption, onSelect })
     );
 }
 
-TierSelectorRenderer.propTypes = {
+SubscriptionPlansRenderer.propTypes = {
     body: PropTypes.string.isRequired,
     selectedOption: PropTypes.string,
     onSelect: PropTypes.func.isRequired,
 };
 
-TierSelectorRenderer.defaultProps = {
+SubscriptionPlansRenderer.defaultProps = {
     selectedOption: null,
 };
