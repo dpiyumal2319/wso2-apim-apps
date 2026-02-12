@@ -19,7 +19,7 @@ import PrimarySecondaryKeyPairRenderer from './PrimarySecondaryKeyPairRenderer';
 import HeaderWithQueryFallbackRenderer from './HeaderWithQueryFallbackRenderer';
 import OpaqueApiKeyRenderer from './OpaqueApiKeyRenderer';
 import HeaderBasedRenderer from './HeaderBasedRenderer';
-import TierSelectorRenderer from './TierSelectorRenderer';
+import SubscriptionPlansRenderer from './SubscriptionPlansRenderer';
 import FallbackRenderer from './FallbackRenderer';
 
 // Map of schemaName -> Renderer component (gateway type removed)
@@ -34,7 +34,7 @@ const invocationRenderers = {
 };
 
 const subscriptionOptionsRenderers = {
-    'tier-selector': TierSelectorRenderer,
+    'subscription-plans': SubscriptionPlansRenderer,
 };
 
 /**

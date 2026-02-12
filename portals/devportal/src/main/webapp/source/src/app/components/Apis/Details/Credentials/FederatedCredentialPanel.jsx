@@ -82,8 +82,8 @@ const FederatedCredentialPanel = (props) => {
                     // Auto-select if only one option
                     try {
                         const parsed = JSON.parse(body.subscriptionOptions.body);
-                        if (parsed.options && parsed.options.length === 1) {
-                            setSelectedOption(JSON.stringify(parsed.options[0]));
+                        if (parsed.plans && parsed.plans.length === 1) {
+                            setSelectedOption(JSON.stringify(parsed.plans[0]));
                         }
                     } catch {
                         // ignore
@@ -129,7 +129,7 @@ const FederatedCredentialPanel = (props) => {
             .then((response) => {
                 setFedSubInfo((prev) => ({
                     ...prev,
-                    credential: response.body,
+                    credential: response.body.credential,
                 }));
             })
             .catch((error) => {
