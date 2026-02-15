@@ -564,7 +564,7 @@ class ApiConsole extends React.Component {
                     <Grid container className={classes.grid}>
                         {!user && (!api.advertiseInfo || !api.advertiseInfo.advertised)
                             && (api.gatewayVendor && api.gatewayVendor !== 'wso2')
-                            && this.context.requiresSubscription !== false && (
+                            && this.context.subscriptionStatus !== 'OPEN' && (
                             <Grid item md={6}>
                                 <Paper className={classes.userNotificationPaper}>
                                     <Typography variant='h5' component='h3'>

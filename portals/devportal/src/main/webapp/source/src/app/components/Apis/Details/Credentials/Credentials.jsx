@@ -412,7 +412,7 @@ class Credentials extends React.Component {
     render() {
         const { intl } = this.props;
         const {
-            api, updateSubscriptionData, applicationsAvailable, subscribedApplications, requiresSubscription,
+            api, updateSubscriptionData, applicationsAvailable, subscribedApplications, subscriptionStatus,
         } = this.context;
         const {
             selectedKeyType,
@@ -432,8 +432,8 @@ class Credentials extends React.Component {
         const isSetAllorResidentKeyManagers = (api.keyManagers && api.keyManagers.includes('all'))
             || (api.keyManagers && api.keyManagers.includes('Resident Key Manager'));
         const renderCredentialInfo = () => {
-            // Safety net: For federated APIs that don't require subscriptions
-            if (isFederated && requiresSubscription === false) {
+            // Safety net: For federated APIs - handle OPEN state
+            if (isFederated && subscriptionStatus === 'OPEN') {
                 return (
                     <InlineMessage type='info' className={classes.dialogContainer}>
                         <Typography component='p'>
@@ -645,7 +645,7 @@ class Credentials extends React.Component {
                                                 isFederated={!!isFederated}
                                                 gatewayType={api.gatewayType}
                                                 apiId={api.id}
-                                                requiresSubscription={requiresSubscription}
+                                                subscriptionStatus={subscriptionStatus}
                                             />
                                         ))}
                                     </table>
