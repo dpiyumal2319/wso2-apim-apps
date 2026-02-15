@@ -31,7 +31,7 @@ const subscriptionTableRow = (props) => {
     const {
         loadInfo, handleSubscriptionDelete, isKeyManagerAllowed,
         selectedAppId, updateSubscriptionData, selectedKeyType, app, applicationOwner, hashEnabled,
-        isFederated, gatewayType, apiId, requiresSubscription,
+        isFederated, gatewayType, apiId, subscriptionStatus,
     } = props;
     const theme = useTheme();
     return (
@@ -135,7 +135,7 @@ const subscriptionTableRow = (props) => {
                                 />
                             </MUILink>
                         </ScopeValidation>
-                        {isFederated && requiresSubscription && (
+                        {isFederated && subscriptionStatus === 'SECURED' && (
                             <MUILink
                                 sx={(themeValue) => ({
                                     padding: themeValue.spacing(1),
@@ -307,12 +307,12 @@ subscriptionTableRow.propTypes = {
     invocationSchema: PropTypes.string,
     gatewayType: PropTypes.string,
     apiId: PropTypes.string,
-    requiresSubscription: PropTypes.bool,
+    subscriptionStatus: PropTypes.string,
 };
 subscriptionTableRow.defaultProps = {
     isFederated: false,
     gatewayType: null,
     apiId: null,
-    requiresSubscription: null,
+    subscriptionStatus: null,
 };
 export default (subscriptionTableRow);

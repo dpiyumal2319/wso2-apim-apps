@@ -41,7 +41,7 @@ const FederatedDetailsPanel = (props) => {
         setAdvAuthHeaderValue,
     } = props;
 
-    const { api, subscribedApplications, requiresSubscription } = useContext(ApiContext);
+    const { api, subscribedApplications, subscriptionStatus } = useContext(ApiContext);
     const [selectedSubscription, setSelectedSubscription] = useState('');
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -262,8 +262,8 @@ const FederatedDetailsPanel = (props) => {
     const CredentialRenderer = getCredentialRenderer(credentialSchema);
     const InvocationRenderer = getInvocationRenderer(invocationSchema);
 
-    // If API doesn't require subscriptions, show info message instead of credential management
-    if (requiresSubscription === false) {
+    // Handle OPEN state - show appropriate message instead of credential management
+    if (subscriptionStatus === 'OPEN') {
         return (
             <Box display='block' justifyContent='center' className={classes.authHeader}>
                 <Grid xs={8} md={6} className={classes.tokenType} item>

@@ -351,16 +351,16 @@ class DetailsLegacy extends React.Component {
                         const restApi = new Api();
                         restApi.getApiSubscriptionSupport(api.body.id)
                             .then((response) => {
-                                this.setState({ requiresSubscription: response.body.requiresSubscription });
+                                this.setState({ subscriptionStatus: response.body.subscriptionStatus });
                             })
                             .catch((error) => {
                                 console.error('Error fetching subscription support:', error);
-                                // On error, assume no subscription required (fail-safe)
-                                this.setState({ requiresSubscription: false });
+                                // On error, treat as OPEN (graceful fallback)
+                                this.setState({ subscriptionStatus: 'OPEN' });
                             });
                     } else {
                         // WSO2 gateway - subscriptions work as usual
-                        this.setState({ requiresSubscription: null });
+                        this.setState({ subscriptionStatus: null });
                     }
                 })
                 .catch((error) => {
@@ -450,7 +450,7 @@ class DetailsLegacy extends React.Component {
             breadcrumbDocument: '',
             tryOutExpanded: true,
             apiChatEnabled: false,
-            requiresSubscription: null, // null = loading, true = requires, false = doesn't require
+            subscriptionStatus: null, // null = loading, 'OPEN' | 'SECURED'
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -555,7 +555,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, requiresSubscription,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionStatus,
         } = this.state;
         const {
             custom: {
@@ -573,6 +573,9 @@ class DetailsLegacy extends React.Component {
         const globalStyle = 'body{ font-family: ' + theme.typography.fontFamily + '}';
         const isMCPServer = window.location.pathname.includes('/mcp-servers');
         const pathPrefix = (isMCPServer ? '/mcp-servers/' : '/apis/') + this.api_uuid + '/';
+        const isFederatedSubHidden = api && api.gatewayVendor
+            && api.gatewayVendor !== 'wso2'
+            && subscriptionStatus === 'OPEN';
         if (!api && notFound) {
             return <ResourceNotFound />;
         }
@@ -648,9 +651,8 @@ class DetailsLegacy extends React.Component {
                                 id='left-menu-overview'
                             />
                             {user && showCredentials && !isSubValidationDisabled
-                                && !(api.gatewayVendor && api.gatewayVendor !== 'wso2' && requiresSubscription === false) && (
+                                && !isFederatedSubHidden && (
                                 <>
-
                                     <LeftMenuItem
                                         text={(
                                             <FormattedMessage
@@ -664,7 +666,6 @@ class DetailsLegacy extends React.Component {
                                         open={open}
                                         id='left-menu-credentials'
                                     />
-
                                 </>
                             )}
                             {showTryout && (api.gatewayType !== 'wso2/apk'
