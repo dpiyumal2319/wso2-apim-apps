@@ -86,38 +86,19 @@ const credentialExtractors = {
 // ============ INVOCATION EXTRACTORS (by invocationSchema) ============
 
 /**
- * Extracts config from 'header-based' invocation schema.
- * Used by: AWS (x-api-key header)
- * Body format: { invocationSchema: 'header-based', headerName: 'x-api-key', ... }
+ * Extracts config from 'api-key-invocation' schema.
+ * Unified schema for all API key-based gateways (AWS, Azure, Kong, etc.)
+ * Body format: { headerEnabled, queryParamEnabled, bodyEnabled, headerName, queryParamName, ... }
  */
-const headerBasedExtractor = (invocationBody) => {
-    try {
-        const parsed = typeof invocationBody === 'string'
-            ? JSON.parse(invocationBody) : invocationBody;
-        return {
-            headerName: parsed.headerName || 'Authorization',
-            prefix: parsed.prefix || '', // No prefix for API keys
-            supportsQueryParam: false,
-        };
-    } catch {
-        return { headerName: 'Authorization', prefix: '', supportsQueryParam: false };
-    }
-};
-
-/**
- * Extracts config from 'header-with-query-fallback' invocation schema.
- * Used by: Azure APIM (Ocp-Apim-Subscription-Key header or query param)
- * Body format: { invocationSchema: 'header-with-query-fallback', headerName: '...', queryParamName: '...' }
- */
-const headerWithQueryFallbackExtractor = (invocationBody) => {
+const apiKeyInvocationExtractor = (invocationBody) => {
     try {
         const parsed = typeof invocationBody === 'string'
             ? JSON.parse(invocationBody) : invocationBody;
         return {
             headerName: parsed.headerName || 'Authorization',
             queryParamName: parsed.queryParamName || null,
-            prefix: parsed.prefix || '',
-            supportsQueryParam: true,
+            prefix: '',
+            supportsQueryParam: !!parsed.queryParamEnabled,
         };
     } catch {
         return { headerName: 'Authorization', prefix: '', supportsQueryParam: false };
@@ -163,8 +144,7 @@ const fallbackInvocationExtractor = (invocationBody) => {
 
 // Registry: invocationSchema → extractor function
 const invocationExtractors = {
-    'header-based': headerBasedExtractor,
-    'header-with-query-fallback': headerWithQueryFallbackExtractor,
+    'api-key-invocation': apiKeyInvocationExtractor,
     'bearer-token': bearerTokenExtractor,
     // Add new invocation schemas here:
     // 'aws-signature': awsSigV4Extractor,
