@@ -16,9 +16,8 @@
  * under the License.
  */
 import PrimarySecondaryKeyPairRenderer from './PrimarySecondaryKeyPairRenderer';
-import HeaderWithQueryFallbackRenderer from './HeaderWithQueryFallbackRenderer';
+import ApiKeyInvocationRenderer from './ApiKeyInvocationRenderer';
 import OpaqueApiKeyRenderer from './OpaqueApiKeyRenderer';
-import HeaderBasedRenderer from './HeaderBasedRenderer';
 import SubscriptionPlansRenderer from './SubscriptionPlansRenderer';
 import FallbackRenderer from './FallbackRenderer';
 
@@ -29,8 +28,7 @@ const credentialRenderers = {
 };
 
 const invocationRenderers = {
-    'header-with-query-fallback': HeaderWithQueryFallbackRenderer,
-    'header-based': HeaderBasedRenderer,
+    'api-key-invocation': ApiKeyInvocationRenderer,
 };
 
 const subscriptionOptionsRenderers = {
