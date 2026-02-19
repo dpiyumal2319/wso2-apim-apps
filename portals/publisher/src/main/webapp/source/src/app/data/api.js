@@ -3865,6 +3865,27 @@ class API extends Resource {
         });
     }
 
+    static getApiFederationConfig(apiId) {
+        const restApiClient = new APIClientFactory().getAPIClient(Utils.getCurrentEnvironment(), Utils.CONST.API_CLIENT).client;
+        return restApiClient.then(client => {
+            return client.apis['APIs'].getApiFederationConfig(
+                { apiId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    static updateApiFederationConfig(apiId, configBody) {
+        const restApiClient = new APIClientFactory().getAPIClient(Utils.getCurrentEnvironment(), Utils.CONST.API_CLIENT).client;
+        return restApiClient.then(client => {
+            return client.apis['APIs'].updateApiFederationConfig(
+                { apiId },
+                { requestBody: configBody },
+                this._requestMetaData(),
+            );
+        });
+    }
+
 }
 
 API.CONSTS = {
