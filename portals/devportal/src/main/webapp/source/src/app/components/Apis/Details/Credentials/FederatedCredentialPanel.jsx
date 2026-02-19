@@ -50,6 +50,7 @@ const FederatedCredentialPanel = (props) => {
     const [subscriptionOptions, setSubscriptionOptions] = useState(null);
     const [selectedOption, setSelectedOption] = useState(null);
     const [optionsLoading, setOptionsLoading] = useState(false);
+    const [invocationTemplate, setInvocationTemplate] = useState(null);
 
     const api = new Api();
     const OptionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
@@ -88,6 +89,9 @@ const FederatedCredentialPanel = (props) => {
                     } catch {
                         // ignore
                     }
+                }
+                if (body && body.invocationTemplate) {
+                    setInvocationTemplate(body.invocationTemplate);
                 }
             })
             .catch((error) => {
@@ -208,6 +212,29 @@ const FederatedCredentialPanel = (props) => {
                         selectedOption={selectedOption}
                         onSelect={setSelectedOption}
                     />
+                )}
+                {invocationTemplate && invocationTemplate.body && (
+                    <Box sx={{ mb: 2 }}>
+                        <Typography variant='body2' fontWeight={500} gutterBottom>
+                            <FormattedMessage
+                                id='Apis.Details.Credentials.FederatedCredentialPanel.invocation.preview'
+                                defaultMessage='Invocation Preview'
+                            />
+                        </Typography>
+                        <Box
+                            sx={{
+                                bgcolor: 'grey.100',
+                                p: 1.5,
+                                borderRadius: 1,
+                                fontFamily: 'monospace',
+                                fontSize: '0.85rem',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                            }}
+                        >
+                            {invocationTemplate.body}
+                        </Box>
+                    </Box>
                 )}
                 <Button
                     variant='contained'
