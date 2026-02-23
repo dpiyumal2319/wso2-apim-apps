@@ -27,6 +27,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PolicyIcon from '@mui/icons-material/Policy';
 import CodeIcon from '@mui/icons-material/Code';
 import PersonPinCircleOutlinedIcon from '@mui/icons-material/PersonPinCircleOutlined';
+import LinkIcon from '@mui/icons-material/Link';
 import ResourcesIcon from '@mui/icons-material/VerticalSplit';
 import { injectIntl, defineMessages, FormattedMessage } from 'react-intl';
 import {
@@ -77,6 +78,7 @@ import Properties from './Properties/Properties';
 import Monetization from './Monetization';
 import Policies from './Policies/Policies';
 import ExternalStores from './ExternalStores/ExternalStores';
+import FederationConfig from './FederationConfig/FederationConfig';
 import { APIProvider } from './components/ApiContext';
 import CreateNewVersion from './NewVersion/NewVersion';
 import ShareAPI from './ShareAPI/ShareAPI';
@@ -1086,6 +1088,21 @@ class Details extends Component {
                                     />
                                 </>
                             )}
+                            {!isAPIProduct && api.gatewayType
+                                && api.gatewayType !== 'wso2/synapse' && (
+                                <>
+                                    <Divider />
+                                    <LeftMenuItem
+                                        text={intl.formatMessage({
+                                            id: 'Apis.Details.index.federation-config',
+                                            defaultMessage: 'Federation',
+                                        })}
+                                        to={pathPrefix + 'federation-config'}
+                                        Icon={<LinkIcon />}
+                                        id='left-menu-federation-config'
+                                    />
+                                </>
+                            )}
                             <Divider />
                         </nav>
                     </Box>
@@ -1397,6 +1414,8 @@ class Details extends Component {
                                     )}
                                     <Route path={Details.subPaths.EXTERNAL_STORES}
                                         component={ExternalStores} />
+                                    <Route path={Details.subPaths.FEDERATION_CONFIG}
+                                        component={FederationConfig} />
                                     <Route
                                         path={Details.subPaths.COMMENTS}
                                         render={(props) => <Comments {...props} apiObj={api} />}
@@ -1490,6 +1509,7 @@ Details.subPaths = {
     MONETIZATION: '/apis/:api_uuid/monetization',
     MONETIZATION_PRODUCT: '/api-products/:apiprod_uuid/monetization',
     EXTERNAL_STORES: '/apis/:api_uuid/external-devportals',
+    FEDERATION_CONFIG: '/apis/:api_uuid/federation-config',
     TRYOUT: '/apis/:api_uuid/test-console',
     TRYOUT_PRODUCT: '/api-products/:apiprod_uuid/test-console',
     MCP_PLAYGROUND: '/mcp-servers/:mcpserver_uuid/mcp-playground',
