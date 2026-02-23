@@ -89,12 +89,10 @@ function FederationConfig() {
     // Editable state
     const [federationEnabled, setFederationEnabled] = useState(false);
     const [curatedPlans, setCuratedPlans] = useState(null);
-    const [showLiveSnapshot, setShowLiveSnapshot] = useState(false);
 
     const fetchConfig = useCallback(() => {
         setLoading(true);
         setError(null);
-        setShowLiveSnapshot(false);
         API.getApiFederationConfig(apiId)
             .then((response) => {
                 const data = response.body;
@@ -124,12 +122,14 @@ function FederationConfig() {
     }, [fetchConfig]);
 
     const snapshot = config?.gatewaySupportSnapshot;
+    const curatedConfig = config?.publisherCuratedConfig;
+    const displaySource = curatedConfig || snapshot;
     const isStale = config?.isStale;
     const hasNoConfig = !config;
-    const schemaName = snapshot?.subscriptionOptions?.schemaName;
+    const schemaName = displaySource?.subscriptionOptions?.schemaName;
     const OptionsEditor = getSubscriptionOptionsEditor(schemaName);
 
-    const invocationTemplate = snapshot?.invocationTemplate;
+    const invocationTemplate = displaySource?.invocationTemplate;
     const InvocationRenderer = getInvocationRenderer(invocationTemplate?.schemaName);
 
     const handlePlanToggle = (planId, enabled) => {
@@ -144,13 +144,16 @@ function FederationConfig() {
     };
 
     const handleLoadLatest = () => {
-        // Swap editor display to live gateway snapshot
-        const liveParsed = parseOptionsBody(snapshot?.subscriptionOptions);
-        setCuratedPlans(liveParsed);
-        setShowLiveSnapshot(true);
+        // Use the already-fetched gatewaySupportSnapshot as the new curated config
+        const snap = config?.gatewaySupportSnapshot;
+        if (!snap) return;
+        const parsed = parseOptionsBody(snap.subscriptionOptions);
+        setCuratedPlans(parsed);
+        // Clear stale flag locally since the user has now reviewed the latest snapshot
+        setConfig((prev) => ({ ...prev, isStale: false, publisherCuratedConfig: snap }));
     };
 
-    const handleSave = (acknowledgeStale = false) => {
+    const handleSave = () => {
         setSaving(true);
         const planSelections = curatedPlans?.plans?.map((p) => ({
             planId: p.id,
@@ -160,7 +163,6 @@ function FederationConfig() {
         const body = {
             federationEnabled,
             curatedPlanSelections: planSelections.length > 0 ? planSelections : null,
-            acknowledgeStale: acknowledgeStale || showLiveSnapshot,
         };
 
         API.updateApiFederationConfig(apiId, body)
@@ -206,7 +208,7 @@ function FederationConfig() {
             </Typography>
 
             {/* Staleness Warning */}
-            {isStale && !showLiveSnapshot && (
+            {isStale && (
                 <Alert
                     severity='warning'
                     sx={{ mb: 2 }}
@@ -228,18 +230,8 @@ function FederationConfig() {
                         id='Apis.Details.FederationConfig.staleWarning'
                         defaultMessage={
                             'The gateway configuration has changed since your last review. '
-                            + 'Click "Load Latest" to see the updated configuration.'
-                        }
-                    />
-                </Alert>
-            )}
-            {showLiveSnapshot && (
-                <Alert severity='info' sx={{ mb: 2 }}>
-                    <FormattedMessage
-                        id='Apis.Details.FederationConfig.loadedLatest'
-                        defaultMessage={
-                            'Showing latest gateway configuration. '
-                            + 'Review the changes and save to acknowledge.'
+                            + 'Click "Load Latest" to see the updated configuration, '
+                            + 'or save to acknowledge the current state.'
                         }
                     />
                 </Alert>
@@ -322,7 +314,7 @@ function FederationConfig() {
                 <Button
                     variant='contained'
                     color='primary'
-                    onClick={() => handleSave(false)}
+                    onClick={() => handleSave()}
                     disabled={saving}
                 >
                     {saving ? (
