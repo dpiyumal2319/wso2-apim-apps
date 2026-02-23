@@ -179,7 +179,6 @@
   "Apis.Details.Credentials.Credentials.visit.original.developer.portal": "Visit Original Developer Portal",
   "Apis.Details.Credentials.FederatedCredentialPanel.delete": "Delete Credential",
   "Apis.Details.Credentials.FederatedCredentialPanel.generate": "Generate Credentials",
-  "Apis.Details.Credentials.FederatedCredentialPanel.invocation.preview": "Invocation Preview",
   "Apis.Details.Credentials.FederatedCredentialPanel.key.and.secret.title": "Key and Secret",
   "Apis.Details.Credentials.FederatedCredentialPanel.loading.options": "Loading subscription options...",
   "Apis.Details.Credentials.FederatedCredentialPanel.no.credential": "No credential has been generated for this subscription yet.",
