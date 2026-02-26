@@ -15,80 +15,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
-import TextField from '@mui/material/TextField';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { FormattedMessage } from 'react-intl';
-import Alert from 'AppComponents/Shared/Alert';
-
-function KeyField({
-    label, value, masked, editable, onChange, headerName,
-}) {
-    const [visible, setVisible] = useState(false);
-    const displayValue = visible ? value : '••••••••••••••••••••';
-
-    const handleCopy = () => {
-        if (masked && !editable) return;
-        navigator.clipboard.writeText(value);
-        Alert.info('Copied to clipboard');
-    };
-
-    return (
-        <TextField
-            label={label}
-            value={editable ? value : displayValue}
-            onChange={editable ? onChange : undefined}
-            fullWidth
-            margin='normal'
-            variant='outlined'
-            InputProps={{
-                readOnly: !editable,
-                startAdornment: editable && headerName ? (
-                    <InputAdornment position='start'>
-                        {`${headerName}:`}
-                    </InputAdornment>
-                ) : null,
-                endAdornment: (
-                    <InputAdornment position='end'>
-                        {!editable && (
-                            <IconButton size='small' onClick={() => setVisible(!visible)}>
-                                {visible ? <VisibilityOffIcon fontSize='small' /> : <VisibilityIcon fontSize='small' />}
-                            </IconButton>
-                        )}
-                        <IconButton size='small' onClick={handleCopy} disabled={masked && !editable}>
-                            <ContentCopyIcon fontSize='small' />
-                        </IconButton>
-                    </InputAdornment>
-                ),
-            }}
-        />
-    );
-}
-
-KeyField.propTypes = {
-    label: PropTypes.string.isRequired,
-    value: PropTypes.string.isRequired,
-    masked: PropTypes.bool.isRequired,
-    editable: PropTypes.bool,
-    onChange: PropTypes.func,
-    headerName: PropTypes.string,
-};
-
-KeyField.defaultProps = {
-    editable: false,
-    onChange: null,
-    headerName: null,
-};
+import KeyField from './KeyField';
 
 export default function OpaqueApiKeyRenderer({
-    body, masked, actionButtons, editable, value, onChange, headerName,
+    body, masked, actionButtons, editable, value, onChange, headerName, onRetrieve, retrieving,
 }) {
     let parsed;
     try {
@@ -117,10 +52,11 @@ export default function OpaqueApiKeyRenderer({
                 editable={editable}
                 onChange={onChange}
                 headerName={headerName}
+                onRetrieve={onRetrieve}
+                retrieving={retrieving}
             />
             {actionButtons && (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                    {actionButtons.retrieve}
                     {actionButtons.regenerate}
                     {actionButtons.delete}
                 </Box>
@@ -133,7 +69,6 @@ OpaqueApiKeyRenderer.propTypes = {
     body: PropTypes.string.isRequired,
     masked: PropTypes.bool.isRequired,
     actionButtons: PropTypes.shape({
-        retrieve: PropTypes.node,
         regenerate: PropTypes.node,
         delete: PropTypes.node,
     }),
@@ -141,6 +76,8 @@ OpaqueApiKeyRenderer.propTypes = {
     value: PropTypes.string,
     onChange: PropTypes.func,
     headerName: PropTypes.string,
+    onRetrieve: PropTypes.func,
+    retrieving: PropTypes.bool,
 };
 
 OpaqueApiKeyRenderer.defaultProps = {
@@ -149,4 +86,6 @@ OpaqueApiKeyRenderer.defaultProps = {
     value: undefined,
     onChange: null,
     headerName: null,
+    onRetrieve: null,
+    retrieving: false,
 };

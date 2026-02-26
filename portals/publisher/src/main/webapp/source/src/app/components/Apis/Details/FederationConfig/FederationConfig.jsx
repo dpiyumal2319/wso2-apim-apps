@@ -32,8 +32,7 @@ import APIContext from 'AppComponents/Apis/Details/components/ApiContext';
 import API from 'AppData/api.js';
 import AppAlert from 'AppComponents/Shared/Alert';
 import Progress from 'AppComponents/Shared/Progress';
-import getSubscriptionOptionsEditor from './FederationConfigRegistry';
-import getInvocationRenderer from './InvocationRendererRegistry';
+import {getSubscriptionOptionsEditor, getInvocationRenderer} from './FederationConfigRegistry';
 
 const PREFIX = 'FederationConfig';
 
@@ -143,6 +142,27 @@ function FederationConfig() {
         });
     };
 
+    const handleOptionGroupChange = (type, groupId, data) => {
+        setCuratedPlans((prev) => {
+            if (!prev?.groups) return prev;
+            return {
+                ...prev,
+                groups: prev.groups.map((g) => {
+                    if (g.groupId !== groupId) return g;
+                    if (type === 'required') return { ...g, required: data.required };
+                    if (type === 'item') {
+                        return {
+                            ...g,
+                            items: g.items.map((item) =>
+                                (item.id === data.itemId ? { ...item, enabled: data.enabled } : item)),
+                        };
+                    }
+                    return g;
+                }),
+            };
+        });
+    };
+
     const handleLoadLatest = () => {
         // Use the already-fetched gatewaySupportSnapshot as the new curated config
         const snap = config?.gatewaySupportSnapshot;
@@ -155,14 +175,31 @@ function FederationConfig() {
 
     const handleSave = () => {
         setSaving(true);
-        const planSelections = curatedPlans?.plans?.map((p) => ({
-            planId: p.id,
-            enabled: p.enabled !== false,
-        })) || [];
+
+        let curatedPlanSelections = null;
+        if (schemaName === 'option-groups' && curatedPlans?.groups) {
+            // Build [{groupId, required, items: [{itemId, enabled}]}]
+            const groupSelections = curatedPlans.groups.map((g) => ({
+                groupId: g.groupId,
+                required: g.required !== false,
+                items: (g.items || []).map((item) => ({
+                    itemId: item.id,
+                    enabled: item.enabled !== false,
+                })),
+            }));
+            curatedPlanSelections = groupSelections.length > 0 ? groupSelections : null;
+        } else if (curatedPlans?.plans) {
+            // subscription-plans: [{planId, enabled}]
+            const planSelections = curatedPlans.plans.map((p) => ({
+                planId: p.id,
+                enabled: p.enabled !== false,
+            }));
+            curatedPlanSelections = planSelections.length > 0 ? planSelections : null;
+        }
 
         const body = {
             federationEnabled,
-            curatedPlanSelections: planSelections.length > 0 ? planSelections : null,
+            curatedPlanSelections: curatedPlanSelections ? JSON.stringify(curatedPlanSelections) : null,
         };
 
         API.updateApiFederationConfig(apiId, body)
@@ -289,7 +326,8 @@ function FederationConfig() {
                     <Divider sx={{ my: 1 }} />
                     <OptionsEditor
                         body={curatedPlans}
-                        onChange={handlePlanToggle}
+                        onChange={schemaName === 'option-groups'
+                            ? handleOptionGroupChange : handlePlanToggle}
                         disabled={saving}
                     />
                 </Paper>

@@ -61,6 +61,9 @@ const MCPTryOut = lazy(() => import('./MCPTryOut/MCPTryOut' /* webpackChunkName:
 const Overview = lazy(() => import('./Overview' /* webpackChunkName: "APIOverview" */));
 const Documents = lazy(() => import('./Documents/Documents' /* webpackChunkName: "APIDocuments" */));
 const Credentials = lazy(() => import('./Credentials/Credentials' /* webpackChunkName: "APICredentials" */));
+const FederatedApiCredentials = lazy(() => import(
+    './Credentials/FederatedApiCredentials' /* webpackChunkName: "FederatedApiCredentials" */
+));
 const Comments = lazy(() => import('./Comments/Comments' /* webpackChunkName: "APIComments" */));
 const Sdk = lazy(() => import('./Sdk' /* webpackChunkName: "APISdk" */));
 const ApiKeys = lazy(() => import('./ApiKeys' /* webpackChunkName: "APIKeys" */));
@@ -120,7 +123,11 @@ const LoadableSwitch = withRouter((props) => {
                 {!isMCPServer && <Route path={solaceTopicsPath} component={SolaceTopicsInfo} />}
                 <Route exact path={credentialsWizardPath} component={Wizard} />
                 <Route path={commentsPath} component={Comments} />
-                <Route path={credentialsPath} component={Credentials} />
+                <Route
+                    path={credentialsPath}
+                    component={api.gatewayVendor && api.gatewayVendor !== 'wso2'
+                        ? FederatedApiCredentials : Credentials}
+                />
                 {!isMCPServer && <Route path={apiKeysPath} component={ApiKeys} />}
                 {tryoutRoute}
                 {!isMCPServer && apiChatEnabled && (
@@ -576,9 +583,8 @@ class DetailsLegacy extends React.Component {
         const globalStyle = 'body{ font-family: ' + theme.typography.fontFamily + '}';
         const isMCPServer = window.location.pathname.includes('/mcp-servers');
         const pathPrefix = (isMCPServer ? '/mcp-servers/' : '/apis/') + this.api_uuid + '/';
-        const isFederatedSubHidden = api && api.gatewayVendor
-            && api.gatewayVendor !== 'wso2'
-            && subscriptionStatus === 'OPEN';
+        const isFederated = api && api.gatewayVendor && api.gatewayVendor !== 'wso2';
+        const isFederatedSubHidden = isFederated && subscriptionStatus === 'OPEN';
         if (!api && notFound) {
             return <ResourceNotFound />;
         }
@@ -657,7 +663,12 @@ class DetailsLegacy extends React.Component {
                                 && !isFederatedSubHidden && (
                                 <>
                                     <LeftMenuItem
-                                        text={(
+                                        text={isFederated ? (
+                                            <FormattedMessage
+                                                id='Apis.Details.index.apiCredentials'
+                                                defaultMessage='API Credentials'
+                                            />
+                                        ) : (
                                             <FormattedMessage
                                                 id='Apis.Details.index.subscriptions'
                                                 defaultMessage='Subscriptions'
