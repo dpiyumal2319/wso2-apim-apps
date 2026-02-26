@@ -15,20 +15,4 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import ApiKeyInvocationRenderer from './ApiKeyInvocationRenderer';
-
-const invocationRenderers = {
-    'api-key-invocation': ApiKeyInvocationRenderer,
-};
-
-/**
- * Get invocation renderer based on schema name.
- * @param {string} schemaName - Schema name from invocationTemplate.schemaName
- * @returns {Component|null} Renderer component or null if no renderer for schema
- */
-export default function getInvocationRenderer(schemaName) {
-    if (!schemaName) {
-        return null;
-    }
-    return invocationRenderers[schemaName] || null;
-}
+export { SelectedOptionPreview as default } from './CredentialRendererRegistry';

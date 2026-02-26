@@ -16,9 +16,12 @@
  * under the License.
  */
 import SubscriptionPlansEditor from './editors/SubscriptionPlansEditor';
+import OptionGroupsEditor from './editors/OptionGroupsEditor';
+import ApiKeyInvocationRenderer from './invocations/ApiKeyInvocationRenderer';
 
 const subscriptionOptionsEditors = {
     'subscription-plans': SubscriptionPlansEditor,
+    'option-groups': OptionGroupsEditor,
 };
 
 /**
@@ -26,9 +29,26 @@ const subscriptionOptionsEditors = {
  * @param {string} schemaName - Schema name from subscriptionOptions.schemaName
  * @returns {Component|null} Editor component or null if no editor for schema
  */
-export default function getSubscriptionOptionsEditor(schemaName) {
+export function getSubscriptionOptionsEditor(schemaName) {
     if (!schemaName) {
         return null;
     }
     return subscriptionOptionsEditors[schemaName] || null;
+}
+
+
+const invocationRenderers = {
+    'api-key-invocation': ApiKeyInvocationRenderer,
+};
+
+/**
+ * Get invocation renderer based on schema name.
+ * @param {string} schemaName - Schema name from invocationTemplate.schemaName
+ * @returns {Component|null} Renderer component or null if no renderer for schema
+ */
+export function getInvocationRenderer(schemaName) {
+    if (!schemaName) {
+        return null;
+    }
+    return invocationRenderers[schemaName] || null;
 }

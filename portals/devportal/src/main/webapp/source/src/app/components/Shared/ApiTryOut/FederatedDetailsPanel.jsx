@@ -18,21 +18,19 @@
 
 import React, { useEffect, useState, useContext } from 'react';
 import { FormattedMessage } from 'react-intl';
+import { Link } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import WarningIcon from '@mui/icons-material/Warning';
+import InfoIcon from '@mui/icons-material/Info';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
-import ConfirmDialog from 'AppComponents/Shared/ConfirmDialog';
 import { ApiContext } from '../../Apis/Details/ApiContext';
 import { getCredentialRenderer, getInvocationRenderer } from '../../Apis/Details/Credentials/federated/CredentialRendererRegistry';
 import { getTryOutConfig } from '../../Apis/Details/Credentials/federated/TryOutConfigProvider';
-import SubscriptionPlansRenderer from '../../Apis/Details/Credentials/federated/SubscriptionPlansRenderer';
 
 const FederatedDetailsPanel = (props) => {
     const {
@@ -45,16 +43,20 @@ const FederatedDetailsPanel = (props) => {
     const [selectedSubscription, setSelectedSubscription] = useState('');
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [actionLoading, setActionLoading] = useState(false);
+    const [retrieving, setRetrieving] = useState(false);
     const [editableCredentialValue, setEditableCredentialValue] = useState('');
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-    const [confirmDialogType, setConfirmDialogType] = useState(null); // 'regenerate' or 'delete'
     const [advAuthHeader, setAdvAuthHeaderInternal] = useState('');
-    const [subscriptionOptions, setSubscriptionOptions] = useState(null);
-    const [selectedOption, setSelectedOption] = useState(null);
-    const [optionsLoading, setOptionsLoading] = useState(false);
+    const [credentialSummaries, setCredentialSummaries] = useState([]);
 
     const apiClient = new Api();
+
+    useEffect(() => {
+        if (api && api.id) {
+            apiClient.getApiCredentialSummaries(api.id)
+                .then((response) => setCredentialSummaries(response.body.list || []))
+                .catch(() => setCredentialSummaries([]));
+        }
+    }, [api?.id]);
 
     useEffect(() => {
         if (subscribedApplications && subscribedApplications.length > 0 && !selectedSubscription) {
@@ -64,10 +66,13 @@ const FederatedDetailsPanel = (props) => {
 
     useEffect(() => {
         if (selectedSubscription) {
+            const summary = credentialSummaries.find((s) => s.subscriptionId === selectedSubscription);
+            if (summary && !summary.isProvisioned) {
+                setFedSubInfo(null);
+                return;
+            }
             setLoading(true);
             setFedSubInfo(null);
-            setSubscriptionOptions(null);
-            setSelectedOption(null);
             apiClient.getFederatedSubscription(selectedSubscription)
                 .then((response) => {
                     setFedSubInfo(response.body);
@@ -80,34 +85,7 @@ const FederatedDetailsPanel = (props) => {
                 })
                 .finally(() => setLoading(false));
         }
-    }, [selectedSubscription]);
-
-    // Fetch subscription options when no credential exists
-    useEffect(() => {
-        if (!loading && !fedSubInfo && selectedSubscription && api) {
-            setOptionsLoading(true);
-            apiClient.getApiSubscriptionSupport(api.id)
-                .then((response) => {
-                    const { body } = response;
-                    if (body && body.subscriptionOptions) {
-                        setSubscriptionOptions(body.subscriptionOptions);
-                        // Auto-select if only one option
-                        try {
-                            const parsed = JSON.parse(body.subscriptionOptions.body);
-                            if (parsed.plans && parsed.plans.length === 1) {
-                                setSelectedOption(JSON.stringify(parsed.plans[0]));
-                            }
-                        } catch {
-                            // ignore
-                        }
-                    }
-                })
-                .catch((error) => {
-                    console.error('Failed to fetch subscription options', error);
-                })
-                .finally(() => setOptionsLoading(false));
-        }
-    }, [loading, fedSubInfo, selectedSubscription]);
+    }, [selectedSubscription, credentialSummaries]);
 
     const updateAuthValues = (info) => {
         if (!info) {
@@ -156,54 +134,6 @@ const FederatedDetailsPanel = (props) => {
         setSelectedSubscription(event.target.value);
     };
 
-    const handleCreate = () => {
-        setActionLoading(true);
-        apiClient.createFederatedSubscription(selectedSubscription, selectedOption)
-            .then((response) => {
-                setFedSubInfo(response.body);
-                updateAuthValues(response.body);
-                setSubscriptionOptions(null);
-                setSelectedOption(null);
-                Alert.info('Credential created successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to create credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
-
-    const handleRegenerate = () => {
-        setActionLoading(true);
-        apiClient.regenerateFederatedCredential(selectedSubscription)
-            .then((response) => {
-                setFedSubInfo(response.body);
-                updateAuthValues(response.body);
-                Alert.info('Credential regenerated successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to regenerate credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
-
-    const handleDelete = () => {
-        setActionLoading(true);
-        apiClient.deleteFederatedSubscription(selectedSubscription)
-            .then(() => {
-                setFedSubInfo(null);
-                setEditableCredentialValue('');
-                if (setAdvAuthHeaderValue) setAdvAuthHeaderValue('');
-                Alert.info('Credential deleted successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to delete credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
-
     const handleCredentialChange = (event) => {
         const { value } = event.target;
         setEditableCredentialValue(value);
@@ -214,25 +144,8 @@ const FederatedDetailsPanel = (props) => {
         }
     };
 
-    const openConfirmDialog = (type) => {
-        setConfirmDialogType(type);
-        setConfirmDialogOpen(true);
-    };
-
-    const handleConfirmDialog = (confirmed) => {
-        setConfirmDialogOpen(false);
-        if (confirmed) {
-            if (confirmDialogType === 'regenerate') {
-                handleRegenerate();
-            } else if (confirmDialogType === 'delete') {
-                handleDelete();
-            }
-        }
-        setConfirmDialogType(null);
-    };
-
     const handleRetrieve = () => {
-        setActionLoading(true);
+        setRetrieving(true);
         apiClient.retrieveFederatedCredential(selectedSubscription)
             .then((response) => {
                 setFedSubInfo((prev) => ({
@@ -245,12 +158,19 @@ const FederatedDetailsPanel = (props) => {
                 Alert.error('Failed to retrieve credential');
                 console.error(error);
             })
-            .finally(() => setActionLoading(false));
+            .finally(() => setRetrieving(false));
     };
+
+    // Build subscriptionId → summary map from fetched summaries
+    const summaryBySubscriptionId = Object.fromEntries(
+        credentialSummaries.map((s) => [s.subscriptionId, s]),
+    );
+
+    const selectedSummary = summaryBySubscriptionId[selectedSubscription];
+    const isProvisioned = selectedSummary ? selectedSummary.isProvisioned : true;
 
     const hasSubscriptions = subscribedApplications && subscribedApplications.length > 0;
     const hasCredential = fedSubInfo && fedSubInfo.credential;
-    const isMasked = hasCredential && fedSubInfo.credential.masked;
     const isRetrievable = hasCredential && fedSubInfo.credential.isValueRetrievable;
 
     const gatewayType = fedSubInfo && fedSubInfo.gatewayType;
@@ -286,13 +206,20 @@ const FederatedDetailsPanel = (props) => {
                 <Grid xs={8} md={6} className={classes.tokenType} item>
                     <Box mb={1} alignItems='center'>
                         <Typography variant='body1'>
-                            <Box display='flex'>
-                                <WarningIcon className={classes.warningIcon} />
+                            <Box display='flex' alignItems='center' gap={1}>
+                                <InfoIcon color='info' />
                                 <div>
                                     <FormattedMessage
-                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.subscribe.first'
-                                        defaultMessage='Please subscribe to an application'
+                                        id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credentials'
+                                        defaultMessage='No credentials available.'
                                     />
+                                    {' '}
+                                    <Link to={`/apis/${api.id}/credentials`}>
+                                        <FormattedMessage
+                                            id='Apis.Details.ApiConsole.FederatedDetailsPanel.go.to.credentials'
+                                            defaultMessage='Go to API Credentials page to generate one.'
+                                        />
+                                    </Link>
                                 </div>
                             </Box>
                         </Typography>
@@ -314,8 +241,8 @@ const FederatedDetailsPanel = (props) => {
                             className={classes.tryoutHeading}
                         >
                             <FormattedMessage
-                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.subscription.heading'
-                                defaultMessage='Application'
+                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.credential.heading'
+                                defaultMessage='Credential'
                             />
                         </Typography>
                         <TextField
@@ -324,8 +251,8 @@ const FederatedDetailsPanel = (props) => {
                             select
                             label={(
                                 <FormattedMessage
-                                    defaultMessage='Application'
-                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.subscription'
+                                    defaultMessage='Credential'
+                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.credential'
                                 />
                             )}
                             value={selectedSubscription}
@@ -333,8 +260,8 @@ const FederatedDetailsPanel = (props) => {
                             onChange={handleSubscriptionChange}
                             helperText={(
                                 <FormattedMessage
-                                    defaultMessage='Select an application'
-                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.select.subscription'
+                                    defaultMessage='Select a credential'
+                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.select.credential'
                                 />
                             )}
                             margin='normal'
@@ -346,7 +273,7 @@ const FederatedDetailsPanel = (props) => {
                                     key={sub.subscriptionId}
                                     className={classes.menuItem}
                                 >
-                                    {sub.label}
+                                    {summaryBySubscriptionId[sub.subscriptionId]?.name || sub.label}
                                 </MenuItem>
                             ))}
                         </TextField>
@@ -358,7 +285,7 @@ const FederatedDetailsPanel = (props) => {
                         </Box>
                     )}
 
-                    {!loading && !hasCredential && (
+                    {!loading && !isProvisioned && (
                         <Grid
                             xs={8}
                             md={6}
@@ -368,50 +295,55 @@ const FederatedDetailsPanel = (props) => {
                         >
                             <Box mb={1} alignItems='center'>
                                 <Typography variant='body1'>
-                                    <Box display='flex'>
-                                        <WarningIcon className={classes.warningIcon} />
+                                    <Box display='flex' alignItems='center' gap={1}>
+                                        <InfoIcon color='info' />
+                                        <div>
+                                            <FormattedMessage
+                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.not.provisioned'
+                                                defaultMessage='Keys have not been generated for this subscription.'
+                                            />
+                                            {' '}
+                                            <Link to={`/apis/${api.id}/credentials`}>
+                                                <FormattedMessage
+                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.go.to.credentials'
+                                                    defaultMessage='Go to API Credentials page to generate one.'
+                                                />
+                                            </Link>
+                                        </div>
+                                    </Box>
+                                </Typography>
+                            </Box>
+                        </Grid>
+                    )}
+
+                    {!loading && isProvisioned && !hasCredential && (
+                        <Grid
+                            xs={8}
+                            md={6}
+                            className={classes.tokenType}
+                            item
+                            style={{ flexDirection: 'column', alignItems: 'flex-start' }}
+                        >
+                            <Box mb={1} alignItems='center'>
+                                <Typography variant='body1'>
+                                    <Box display='flex' alignItems='center' gap={1}>
+                                        <InfoIcon color='info' />
                                         <div>
                                             <FormattedMessage
                                                 id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
                                                 defaultMessage='No credential generated for this subscription.'
                                             />
+                                            {' '}
+                                            <Link to={`/apis/${api.id}/credentials`}>
+                                                <FormattedMessage
+                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.go.to.credentials'
+                                                    defaultMessage='Go to API Credentials page to generate one.'
+                                                />
+                                            </Link>
                                         </div>
                                     </Box>
                                 </Typography>
                             </Box>
-                            {optionsLoading && (
-                                <Box display='flex' justifyContent='center' p={1}>
-                                    <CircularProgress size={20} />
-                                </Box>
-                            )}
-                            {!optionsLoading && subscriptionOptions && subscriptionOptions.body && (
-                                <Box mb={2} width='100%'>
-                                    <SubscriptionPlansRenderer
-                                        body={subscriptionOptions.body}
-                                        selectedOption={selectedOption}
-                                        onSelect={setSelectedOption}
-                                    />
-                                </Box>
-                            )}
-                            <Button
-                                onClick={handleCreate}
-                                variant='contained'
-                                color='grey'
-                                className={classes.genKeyButton}
-                                style={{ marginLeft: 0 }}
-                                disabled={
-                                    actionLoading
-                                    || !selectedSubscription
-                                    || (subscriptionOptions && subscriptionOptions.body && !selectedOption)
-                                }
-                                id='gen-federated-credential'
-                            >
-                                {actionLoading && <CircularProgress size={15} />}
-                                <FormattedMessage
-                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.generate'
-                                    defaultMessage='GENERATE CREDENTIAL'
-                                />
-                            </Button>
                         </Grid>
                     )}
 
@@ -434,62 +366,12 @@ const FederatedDetailsPanel = (props) => {
                                 <CredentialRenderer
                                     body={fedSubInfo.credential.body}
                                     masked={fedSubInfo.credential.masked}
-                                    editable={true}
+                                    editable
                                     value={editableCredentialValue}
                                     onChange={handleCredentialChange}
                                     headerName={advAuthHeader}
-                                    actionButtons={{
-                                        retrieve: isMasked && isRetrievable && (
-                                            <Button
-                                                onClick={handleRetrieve}
-                                                variant='contained'
-                                                color='grey'
-                                                className={classes.genKeyButton}
-                                                disabled={actionLoading}
-                                                style={{ marginLeft: 0 }}
-                                                id='retrieve-federated-credential'
-                                            >
-                                                {actionLoading && <CircularProgress size={15} />}
-                                                <FormattedMessage
-                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.retrieve'
-                                                    defaultMessage='SHOW KEYS'
-                                                />
-                                            </Button>
-                                        ),
-                                        regenerate: (
-                                            <Button
-                                                onClick={() => openConfirmDialog('regenerate')}
-                                                variant='contained'
-                                                color='grey'
-                                                className={classes.genKeyButton}
-                                                disabled={actionLoading}
-                                                style={{ marginLeft: 0 }}
-                                                id='regen-federated-credential'
-                                            >
-                                                {actionLoading && <CircularProgress size={15} />}
-                                                <FormattedMessage
-                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.regenerate'
-                                                    defaultMessage='REGENERATE KEYS'
-                                                />
-                                            </Button>
-                                        ),
-                                        delete: (
-                                            <Button
-                                                onClick={() => openConfirmDialog('delete')}
-                                                variant='outlined'
-                                                color='error'
-                                                disabled={actionLoading}
-                                                style={{ marginLeft: 0 }}
-                                                className={classes.deleteButton}
-                                                id='delete-federated-credential'
-                                            >
-                                                <FormattedMessage
-                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.delete'
-                                                    defaultMessage='DELETE'
-                                                />
-                                            </Button>
-                                        ),
-                                    }}
+                                    onRetrieve={isRetrievable ? handleRetrieve : undefined}
+                                    retrieving={retrieving}
                                 />
                             </Grid>
                         </>
@@ -513,26 +395,6 @@ const FederatedDetailsPanel = (props) => {
                     )}
                 </>
             )}
-            <ConfirmDialog
-                open={confirmDialogOpen}
-                title={
-                    confirmDialogType === 'regenerate'
-                        ? 'Regenerate Credential'
-                        : 'Delete Credential'
-                }
-                message={
-                    confirmDialogType === 'regenerate'
-                        ? 'Are you sure you want to regenerate this credential? The old credential will stop working immediately.'
-                        : 'Are you sure you want to delete this credential? This action cannot be undone.'
-                }
-                labelOk={
-                    confirmDialogType === 'regenerate'
-                        ? 'Regenerate'
-                        : 'Delete'
-                }
-                labelCancel='Cancel'
-                callback={handleConfirmDialog}
-            />
         </Box>
     );
 };

@@ -20,78 +20,13 @@ import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
-import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { FormattedMessage } from 'react-intl';
-import Alert from 'AppComponents/Shared/Alert';
-
-function KeyField({
-    label, value, masked, editable, onChange, headerName,
-}) {
-    const [visible, setVisible] = useState(false);
-    const displayValue = visible ? value : '••••••••••••••••••••';
-
-    const handleCopy = () => {
-        if (masked && !editable) return;
-        navigator.clipboard.writeText(value);
-        Alert.info('Copied to clipboard');
-    };
-
-    return (
-        <TextField
-            label={label}
-            value={editable ? value : displayValue}
-            onChange={editable ? onChange : undefined}
-            fullWidth
-            margin='normal'
-            variant={editable ? 'outlined' : 'filled'}
-            InputProps={{
-                readOnly: !editable,
-                startAdornment: editable && headerName ? (
-                    <InputAdornment position='start'>
-                        {`${headerName}:`}
-                    </InputAdornment>
-                ) : null,
-                endAdornment: (
-                    <InputAdornment position='end'>
-                        {!editable && (
-                            <IconButton size='small' onClick={() => setVisible(!visible)}>
-                                {visible ? <VisibilityOffIcon fontSize='small' /> : <VisibilityIcon fontSize='small' />}
-                            </IconButton>
-                        )}
-                        <IconButton size='small' onClick={handleCopy} disabled={masked && !editable}>
-                            <ContentCopyIcon fontSize='small' />
-                        </IconButton>
-                    </InputAdornment>
-                ),
-            }}
-        />
-    );
-}
-
-KeyField.propTypes = {
-    label: PropTypes.string.isRequired,
-    value: PropTypes.string.isRequired,
-    masked: PropTypes.bool.isRequired,
-    editable: PropTypes.bool,
-    onChange: PropTypes.func,
-    headerName: PropTypes.string,
-};
-
-KeyField.defaultProps = {
-    editable: false,
-    onChange: null,
-    headerName: null,
-};
+import KeyField from './KeyField';
 
 export default function PrimarySecondaryKeyPairRenderer({
-    body, masked, actionButtons, editable, value, onChange, headerName,
+    body, masked, actionButtons, editable, value, onChange, headerName, onRetrieve, retrieving,
 }) {
     const [selectedKey, setSelectedKey] = useState('primary');
     let parsed;
@@ -165,16 +100,21 @@ export default function PrimarySecondaryKeyPairRenderer({
                         editable
                         onChange={onChange}
                         headerName={headerName}
+                        onRetrieve={onRetrieve}
+                        retrieving={retrieving}
                     />
                 </>
             ) : (
-                // In read-only mode, show both keys
+                // In read-only mode, show both keys.
+                // Both share the same onRetrieve/retrieving since retrieval fetches both keys together.
                 <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                         <KeyField
                             label='Primary Key'
                             value={primaryKey || ''}
                             masked={masked}
+                            onRetrieve={onRetrieve}
+                            retrieving={retrieving}
                         />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -182,13 +122,14 @@ export default function PrimarySecondaryKeyPairRenderer({
                             label='Secondary Key'
                             value={secondaryKey || ''}
                             masked={masked}
+                            onRetrieve={onRetrieve}
+                            retrieving={retrieving}
                         />
                     </Grid>
                 </Grid>
             )}
             {actionButtons && (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                    {actionButtons.retrieve}
                     {actionButtons.regenerate}
                     {actionButtons.delete}
                 </Box>
@@ -201,7 +142,6 @@ PrimarySecondaryKeyPairRenderer.propTypes = {
     body: PropTypes.string.isRequired,
     masked: PropTypes.bool.isRequired,
     actionButtons: PropTypes.shape({
-        retrieve: PropTypes.node,
         regenerate: PropTypes.node,
         delete: PropTypes.node,
     }),
@@ -209,6 +149,8 @@ PrimarySecondaryKeyPairRenderer.propTypes = {
     value: PropTypes.string,
     onChange: PropTypes.func,
     headerName: PropTypes.string,
+    onRetrieve: PropTypes.func,
+    retrieving: PropTypes.bool,
 };
 
 PrimarySecondaryKeyPairRenderer.defaultProps = {
@@ -217,4 +159,6 @@ PrimarySecondaryKeyPairRenderer.defaultProps = {
     value: undefined,
     onChange: null,
     headerName: null,
+    onRetrieve: null,
+    retrieving: false,
 };

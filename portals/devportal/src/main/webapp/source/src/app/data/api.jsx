@@ -996,13 +996,11 @@ export default class API extends Resource {
         });
     }
 
-    createFederatedSubscription(subscriptionId, selectedOption) {
+    createFederatedSubscription(subscriptionId) {
         return this.client.then((client) => {
-            // Always send a JSON body so Content-Type: application/json is set (CXF requires it)
-            const requestBody = selectedOption ? { selectedOption } : {};
             return client.apis['Federated Subscriptions'].createFederatedSubscription(
                 { subscriptionId },
-                { requestBody },
+                {},
                 this._requestMetaData(),
             );
         });
@@ -1038,6 +1036,38 @@ export default class API extends Resource {
     regenerateFederatedCredential(subscriptionId) {
         return this.client.then((client) => {
             return client.apis.Subscriptions.regenerateSubscriptionCredential(
+                { subscriptionId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    createFederatedCredentialForApi(apiId, applicationId, name, selectedOption) {
+        return this.client.then((client) => {
+            const requestBody = { applicationId, name };
+            if (selectedOption) {
+                requestBody.selectedOption = selectedOption;
+            }
+            return client.apis['Federated Subscriptions'].subscribeAndCreateFederatedCredential(
+                { apiId },
+                { requestBody },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    getApiCredentialSummaries(apiId) {
+        return this.client.then((client) => {
+            return client.apis['Federated Subscriptions'].getApiCredentialSummaries(
+                { apiId },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    deleteSubscription(subscriptionId) {
+        return this.client.then((client) => {
+            return client.apis.Subscriptions.delete_subscriptions__subscriptionId_(
                 { subscriptionId },
                 this._requestMetaData(),
             );
