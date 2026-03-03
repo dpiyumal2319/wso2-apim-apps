@@ -45,6 +45,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CustomIcon from '../../Shared/CustomIcon';
 import LeftMenuItem from '../../Shared/LeftMenuItem';
 import { ResourceNotFound } from '../../Base/Errors/index';
@@ -715,7 +716,7 @@ class DetailsLegacy extends React.Component {
                                             />
                                         )}
                                         route='credentials'
-                                        iconText='credentials'
+                                        icon={<VpnKeyIcon style={{ fontSize: 'large', padding: 8 }} />}
                                         to={pathPrefix + 'credentials'}
                                         open={open}
                                         id='left-menu-credentials'
