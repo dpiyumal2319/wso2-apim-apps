@@ -71,6 +71,18 @@ export default function Breadcrumb(props) {
         },
         {
             route: 'credentials',
+            text: api && api.gatewayVendor && api.gatewayVendor !== 'wso2'
+                ? intl.formatMessage({
+                    defaultMessage: 'API Credentials',
+                    id: 'Apis.Details.Breadcrumb.api.credentials',
+                })
+                : intl.formatMessage({
+                    defaultMessage: 'Subscriptions',
+                    id: 'Apis.Details.Breadcrumb.subscriptions',
+                }),
+        },
+        {
+            route: 'subscriptions',
             text: intl.formatMessage({
                 defaultMessage: 'Subscriptions',
                 id: 'Apis.Details.Breadcrumb.subscriptions',

@@ -142,6 +142,10 @@ export default function DevelopSectionMenu(props) {
     }
 
     const intl = useIntl();
+    const hasClassicSubscriptions = Array.isArray(componentValidator?.subscriptions)
+        && componentValidator.subscriptions.includes('subscriptions');
+    const hasFederatedSubscriptions = !!componentValidator?.federatedSubscription;
+    const showSubscriptionsMenu = !isAPIProduct && (hasClassicSubscriptions || hasFederatedSubscriptions);
 
     return (
         <Root className={classes.root}>
@@ -186,7 +190,7 @@ export default function DevelopSectionMenu(props) {
                             id='left-menu-itembusinessinfo'
                             route='business-info'
                         />
-                        {(componentValidator.subscriptions.includes("subscriptions") && !isAPIProduct) && (
+                        {showSubscriptionsMenu && (
                             <LeftMenuItem
                                 text={intl.formatMessage({
                                     id: 'Apis.Details.index.subscriptions',
