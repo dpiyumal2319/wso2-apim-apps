@@ -119,6 +119,8 @@ export default function FederatedApiCredentials() {
     const {
         api,
         applicationsAvailable,
+        subscribedApplications,
+        subscriptionSupport,
         updateSubscriptionData,
     } = useContext(ApiContext);
 
@@ -176,11 +178,16 @@ export default function FederatedApiCredentials() {
         }
     }, [api?.id]);
 
+    // Pick first app from whichever list is active when the wizard opens
+    const wizardApps = subscriptionSupport
+        ? (subscribedApplications || [])
+        : (applicationsAvailable || []);
+
     useEffect(() => {
-        if (applicationsAvailable && applicationsAvailable.length > 0 && !selectedAppId) {
-            setSelectedAppId(applicationsAvailable[0].value);
+        if (wizardApps.length > 0 && !selectedAppId) {
+            setSelectedAppId(wizardApps[0].value);
         }
-    }, [applicationsAvailable, selectedAppId]);
+    }, [wizardApps.length, selectedAppId]);
 
     const openResultDialog = (data) => {
         setResultData(data);
@@ -264,17 +271,10 @@ export default function FederatedApiCredentials() {
                     disabled={!summary.credentialId}
                     sx={{ whiteSpace: 'nowrap' }}
                 >
-                    {expanded ? (
-                        <FormattedMessage
-                            id='FederatedApiCredentials.hide.keys'
-                            defaultMessage='Hide keys'
-                        />
-                    ) : (
-                        <FormattedMessage
-                            id='FederatedApiCredentials.show.keys'
-                            defaultMessage='Show keys'
-                        />
-                    )}
+                    <FormattedMessage
+                        id='FederatedApiCredentials.view.keys'
+                        defaultMessage='View'
+                    />
                 </Button>
                 <Button
                     variant='outlined'
@@ -288,8 +288,8 @@ export default function FederatedApiCredentials() {
                         ? <CircularProgress size={16} />
                         : (
                             <FormattedMessage
-                                id='FederatedApiCredentials.delete.credential'
-                                defaultMessage='Delete credential'
+                                id='FederatedApiCredentials.delete'
+                                defaultMessage='Delete'
                             />
                         )}
                 </Button>
@@ -297,9 +297,15 @@ export default function FederatedApiCredentials() {
         );
     };
 
-    const hasOptions = subscriptionOptions && subscriptionOptions.body;
+    const hasOptions = !subscriptionSupport && subscriptionOptions && subscriptionOptions.body;
     const requiresSelection = hasOptions && !selectedOption;
-    const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
+    const noAppsAvailable = wizardApps.length === 0;
+    let appDropdownHelperText = '';
+    if (noAppsAvailable) {
+        appDropdownHelperText = subscriptionSupport
+            ? 'No subscribed applications. Subscribe to this API first.'
+            : 'No applications available. Create an application first.';
+    }
     const resultCredential = resultData?.credential;
     const resultInvocation = resultData?.invocationInstruction;
     const ResultCredentialRenderer = getCredentialRenderer(resultCredential?.schemaName);
@@ -447,7 +453,7 @@ export default function FederatedApiCredentials() {
                                                 {expanded && summary.credentialId && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={6}
+                                                            colSpan={5}
                                                             sx={{
                                                                 py: 0,
                                                                 borderLeft: '3px solid',
@@ -503,12 +509,10 @@ export default function FederatedApiCredentials() {
                                 onChange={(e) => setSelectedAppId(e.target.value)}
                                 size='small'
                                 disabled={noAppsAvailable}
-                                helperText={noAppsAvailable
-                                    ? 'No applications available. Create an application or all are already subscribed.'
-                                    : ''}
+                                helperText={appDropdownHelperText}
                                 sx={{ flex: 1 }}
                             >
-                                {applicationsAvailable && applicationsAvailable.map((app) => (
+                                {wizardApps.map((app) => (
                                     <MenuItem key={app.value} value={app.value}>
                                         {app.label}
                                     </MenuItem>
