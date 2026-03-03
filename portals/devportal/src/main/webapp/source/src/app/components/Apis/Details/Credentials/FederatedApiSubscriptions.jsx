@@ -33,6 +33,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
 import AddIcon from '@mui/icons-material/Add';
 import { useHistory } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
@@ -341,45 +342,71 @@ export default function FederatedApiSubscriptions() {
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
-                                    ) : summaries.map((summary) => (
-                                        <TableRow key={summary.subscriptionId}>
-                                            <TableCell>{summary.applicationName}</TableCell>
-                                            <TableCell>
-                                                <SelectedOptionPreview selectedOption={summary.selectedOption} />
-                                            </TableCell>
-                                            <TableCell>
-                                                {summary.createdTime
-                                                    ? new Date(summary.createdTime).toLocaleString()
-                                                    : '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                {summary.lastUpdatedTime
-                                                    ? new Date(summary.lastUpdatedTime).toLocaleString()
-                                                    : '-'}
-                                            </TableCell>
-                                            <TableCell>{summary.subscriptionStatus || '-'}</TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    variant='outlined'
-                                                    size='small'
-                                                    color='error'
-                                                    disabled={unsubscribing === summary.subscriptionId
-                                                        || summary.subscriptionStatus === 'DELETE_PENDING'
-                                                        || subscriptionActionDisabled}
-                                                    onClick={() => handleUnsubscribe(summary.subscriptionId)}
-                                                >
-                                                    {unsubscribing === summary.subscriptionId
-                                                        ? <CircularProgress size={16} />
-                                                        : (
-                                                            <FormattedMessage
-                                                                id='FederatedApiSubscriptions.unsubscribe'
-                                                                defaultMessage='Unsubscribe'
-                                                            />
-                                                        )}
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    ) : summaries.map((summary) => {
+                                        const isStatusLocked = summary.subscriptionStatus === 'DELETE_PENDING'
+                                            || summary.subscriptionStatus === 'BLOCKED'
+                                            || summary.subscriptionStatus === 'ON_HOLD';
+                                        const statusChipColor = (() => {
+                                            switch (summary.subscriptionStatus) {
+                                                case 'UNBLOCKED': return 'success';
+                                                case 'ON_HOLD': return 'warning';
+                                                case 'BLOCKED': return 'error';
+                                                case 'REJECTED': return 'error';
+                                                case 'DELETE_PENDING': return 'default';
+                                                default: return 'default';
+                                            }
+                                        })();
+                                        const statusLabel = summary.subscriptionStatus === 'UNBLOCKED'
+                                            ? 'Active'
+                                            : (summary.subscriptionStatus || '-');
+
+                                        return (
+                                            <TableRow key={summary.subscriptionId}>
+                                                <TableCell>{summary.applicationName}</TableCell>
+                                                <TableCell>
+                                                    <SelectedOptionPreview selectedOption={summary.selectedOption} />
+                                                </TableCell>
+                                                <TableCell>
+                                                    {summary.createdTime
+                                                        ? new Date(summary.createdTime).toLocaleString()
+                                                        : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {summary.lastUpdatedTime
+                                                        ? new Date(summary.lastUpdatedTime).toLocaleString()
+                                                        : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={statusLabel}
+                                                        color={statusChipColor}
+                                                        size='small'
+                                                        variant='outlined'
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant='outlined'
+                                                        size='small'
+                                                        color='error'
+                                                        disabled={unsubscribing === summary.subscriptionId
+                                                            || isStatusLocked
+                                                            || subscriptionActionDisabled}
+                                                        onClick={() => handleUnsubscribe(summary.subscriptionId)}
+                                                    >
+                                                        {unsubscribing === summary.subscriptionId
+                                                            ? <CircularProgress size={16} />
+                                                            : (
+                                                                <FormattedMessage
+                                                                    id='FederatedApiSubscriptions.unsubscribe'
+                                                                    defaultMessage='Unsubscribe'
+                                                                />
+                                                            )}
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </TableContainer>

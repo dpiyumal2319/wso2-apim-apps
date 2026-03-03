@@ -178,10 +178,23 @@ export default function FederatedApiCredentials() {
         }
     }, [api?.id]);
 
-    // Pick first app from whichever list is active when the wizard opens
-    const wizardApps = subscriptionSupport
-        ? (subscribedApplications || [])
-        : (applicationsAvailable || []);
+    // Build the app list for the credential wizard based on subscription support state
+    const wizardApps = (() => {
+        if (subscriptionSupport) {
+            // Only show apps with ACTIVE (UNBLOCKED) subscriptions
+            return (subscribedApplications || []).filter(
+                (app) => app.status === 'UNBLOCKED',
+            );
+        }
+        // Non-subscription mode: show all user apps (union of available + subscribed)
+        const available = applicationsAvailable || [];
+        const subscribed = (subscribedApplications || []).map((app) => ({
+            value: app.value,
+            label: app.label,
+        }));
+        const seen = new Set(subscribed.map((a) => a.value));
+        return [...subscribed, ...available.filter((a) => !seen.has(a.value))];
+    })();
 
     useEffect(() => {
         if (wizardApps.length > 0 && !selectedAppId) {
@@ -302,9 +315,16 @@ export default function FederatedApiCredentials() {
     const noAppsAvailable = wizardApps.length === 0;
     let appDropdownHelperText = '';
     if (noAppsAvailable) {
-        appDropdownHelperText = subscriptionSupport
-            ? 'No subscribed applications. Subscribe to this API first.'
-            : 'No applications available. Create an application first.';
+        if (subscriptionSupport) {
+            const hasNonActiveSubscriptions = (subscribedApplications || []).some(
+                (app) => app.status && app.status !== 'UNBLOCKED',
+            );
+            appDropdownHelperText = hasNonActiveSubscriptions
+                ? 'No active subscriptions. Your subscriptions may be pending approval or blocked.'
+                : 'No subscribed applications. Subscribe to this API first.';
+        } else {
+            appDropdownHelperText = 'No applications available. Create an application first.';
+        }
     }
     const resultCredential = resultData?.credential;
     const resultInvocation = resultData?.invocationInstruction;
