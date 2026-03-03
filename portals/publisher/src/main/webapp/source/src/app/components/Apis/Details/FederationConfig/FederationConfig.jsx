@@ -72,11 +72,11 @@ function parseOptionsBody(snapshotOptions) {
 }
 
 /**
- * Publisher Federation Configuration page.
+ * Publisher Subscription Configuration page.
  * Uses schema-driven registry for subscription options editing.
  * Sends curatedPlanSelections [{planId, enabled}] on save.
  */
-function FederationConfig() {
+function FederationConfig({ subscriptionSupported = false }) {
     const { api } = useContext(APIContext);
     const apiId = api.id;
 
@@ -86,7 +86,7 @@ function FederationConfig() {
     const [error, setError] = useState(null);
 
     // Editable state
-    const [federationEnabled, setFederationEnabled] = useState(false);
+    const [subscriptionEnabled, setSubscriptionEnabled] = useState(false);
     const [curatedPlans, setCuratedPlans] = useState(null);
 
     const fetchConfig = useCallback(() => {
@@ -96,7 +96,7 @@ function FederationConfig() {
             .then((response) => {
                 const data = response.body;
                 setConfig(data);
-                setFederationEnabled(data.federationEnabled || false);
+                setSubscriptionEnabled(data.subscriptionEnabled || false);
 
                 // Use publisherCuratedConfig (has enabled flags) or fall back to live snapshot
                 const source = data.publisherCuratedConfig || data.gatewaySupportSnapshot;
@@ -107,7 +107,7 @@ function FederationConfig() {
                 console.error('Error fetching federation config:', err);
                 if (err.status === 404) {
                     setConfig(null);
-                    setFederationEnabled(false);
+                    setSubscriptionEnabled(false);
                     setCuratedPlans(null);
                 } else {
                     setError('Failed to load federation configuration.');
@@ -198,18 +198,18 @@ function FederationConfig() {
         }
 
         const body = {
-            federationEnabled,
+            ...(subscriptionSupported && { subscriptionEnabled }),
             curatedPlanSelections: curatedPlanSelections ? JSON.stringify(curatedPlanSelections) : null,
         };
 
         API.updateApiFederationConfig(apiId, body)
             .then(() => {
-                AppAlert.info('Federation configuration updated.');
+                AppAlert.info('Subscription configuration updated.');
                 fetchConfig();
             })
             .catch((err) => {
                 console.error('Error saving federation config:', err);
-                AppAlert.error('Failed to save federation configuration.');
+                AppAlert.error('Failed to save subscription configuration.');
             })
             .finally(() => setSaving(false));
     };
@@ -231,15 +231,15 @@ function FederationConfig() {
             <Typography variant='h5' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.FederationConfig.title'
-                    defaultMessage='Federation Configuration'
+                    defaultMessage='Subscriptions'
                 />
             </Typography>
             <Typography variant='body2' color='textSecondary' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.FederationConfig.description'
                     defaultMessage={
-                        'Control how this API is presented to developers '
-                        + 'in the Developer Portal for federated subscriptions.'
+                        'Control subscription behavior and curation for this API '
+                        + 'in the Developer Portal.'
                     }
                 />
             </Typography>
@@ -274,42 +274,68 @@ function FederationConfig() {
                 </Alert>
             )}
 
-            {/* Enable/Disable Toggle */}
-            <Paper className={classes.paper} elevation={0} variant='outlined'>
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={federationEnabled}
-                            onChange={(e) => setFederationEnabled(e.target.checked)}
-                            color='primary'
-                        />
-                    }
-                    label={
-                        <Typography variant='subtitle1'>
-                            <FormattedMessage
-                                id='Apis.Details.FederationConfig.enableLabel'
-                                defaultMessage='Enable Federation'
+            {/* Enable/Disable Toggle — only shown when gateway supports subscriptions */}
+            {subscriptionSupported && (
+                <Paper className={classes.paper} elevation={0} variant='outlined'>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={subscriptionEnabled}
+                                onChange={(e) => setSubscriptionEnabled(e.target.checked)}
+                                color='primary'
                             />
-                        </Typography>
-                    }
-                />
-                <Typography variant='body2' color='textSecondary' sx={{ ml: 6 }}>
-                    <FormattedMessage
-                        id='Apis.Details.FederationConfig.enableHelp'
-                        defaultMessage={
-                            'When enabled, developers can create federated subscriptions '
-                            + 'to this API through the Developer Portal.'
+                        }
+                        label={
+                            <Typography variant='subtitle1'>
+                                <FormattedMessage
+                                    id='Apis.Details.FederationConfig.enableLabel'
+                                    defaultMessage='Enable Subscriptions'
+                                />
+                            </Typography>
                         }
                     />
-                </Typography>
-            </Paper>
+                    <Typography variant='body2' color='textSecondary' sx={{ ml: 6 }}>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.enableHelp'
+                            defaultMessage={
+                                'When enabled, developers can create subscriptions and credentials '
+                                + 'for this API through the Developer Portal.'
+                            }
+                        />
+                    </Typography>
+                </Paper>
+            )}
+
+            {/* Context banner: tells publisher when devportal developers will see these options */}
+            <Alert
+                severity='info'
+                sx={{ mb: 2 }}
+            >
+                {subscriptionSupported ? (
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.subscriptionTimeNote'
+                        defaultMessage={
+                            'The following options will be presented to developers at subscription time '
+                            + 'in the Developer Portal.'
+                        }
+                    />
+                ) : (
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.keyGenTimeNote'
+                        defaultMessage={
+                            'This gateway does not support subscriptions. The following options will be '
+                            + 'presented to developers at key generation time in the Developer Portal.'
+                        }
+                    />
+                )}
+            </Alert>
 
             {/* No snapshot / no config message */}
             {hasNoConfig && !snapshot && (
                 <Alert severity='info' sx={{ mb: 2 }}>
                     <FormattedMessage
                         id='Apis.Details.FederationConfig.noConfig'
-                        defaultMessage='No federation configuration found. Save to create one.'
+                        defaultMessage='No subscription configuration found. Save to create one.'
                     />
                 </Alert>
             )}

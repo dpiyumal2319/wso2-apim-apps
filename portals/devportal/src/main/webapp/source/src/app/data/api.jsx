@@ -1006,6 +1006,32 @@ export default class API extends Resource {
         });
     }
 
+    createFederatedSubscriptionForApi(apiId, applicationId, selectedOption) {
+        return this.client.then((client) => {
+            const requestBody = { applicationId };
+            if (selectedOption) {
+                requestBody.selectedOption = selectedOption;
+            }
+
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.createFederatedSubscription === 'function') {
+                return fedSubApi.createFederatedSubscription(
+                    { apiId },
+                    { requestBody },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.APIs && typeof client.apis.APIs.createFederatedSubscription === 'function') {
+                return client.apis.APIs.createFederatedSubscription(
+                    { apiId },
+                    { requestBody },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('createFederatedSubscription operation is not available in the API client');
+        });
+    }
+
     getFederatedSubscription(subscriptionId) {
         return this.client.then((client) => {
             return client.apis['Federated Subscriptions'].getFederatedSubscription(
@@ -1048,11 +1074,79 @@ export default class API extends Resource {
             if (selectedOption) {
                 requestBody.selectedOption = selectedOption;
             }
-            return client.apis['Federated Subscriptions'].subscribeAndCreateFederatedCredential(
-                { apiId },
-                { requestBody },
-                this._requestMetaData(),
-            );
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.createApiFederatedCredential === 'function') {
+                return fedSubApi.createApiFederatedCredential(
+                    { apiId },
+                    { requestBody },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.APIs && typeof client.apis.APIs.createApiFederatedCredential === 'function') {
+                return client.apis.APIs.createApiFederatedCredential(
+                    { apiId },
+                    { requestBody },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('createApiFederatedCredential operation is not available in the API client');
+        });
+    }
+
+    getApiFederatedCredential(apiId, credentialId) {
+        return this.client.then((client) => {
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.getApiFederatedCredential === 'function') {
+                return fedSubApi.getApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.APIs && typeof client.apis.APIs.getApiFederatedCredential === 'function') {
+                return client.apis.APIs.getApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('getApiFederatedCredential operation is not available in the API client');
+        });
+    }
+
+    deleteApiFederatedCredential(apiId, credentialId) {
+        return this.client.then((client) => {
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.deleteApiFederatedCredential === 'function') {
+                return fedSubApi.deleteApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.APIs && typeof client.apis.APIs.deleteApiFederatedCredential === 'function') {
+                return client.apis.APIs.deleteApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('deleteApiFederatedCredential operation is not available in the API client');
+        });
+    }
+
+    retrieveApiFederatedCredential(apiId, credentialId) {
+        return this.client.then((client) => {
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.retrieveApiFederatedCredential === 'function') {
+                return fedSubApi.retrieveApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.APIs && typeof client.apis.APIs.retrieveApiFederatedCredential === 'function') {
+                return client.apis.APIs.retrieveApiFederatedCredential(
+                    { apiId, credentialId },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('retrieveApiFederatedCredential operation is not available in the API client');
         });
     }
 
@@ -1062,6 +1156,25 @@ export default class API extends Resource {
                 { apiId },
                 this._requestMetaData(),
             );
+        });
+    }
+
+    getApiSubscriptionSummaries(apiId) {
+        return this.client.then((client) => {
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.getApiSubscriptionSummaries === 'function') {
+                return fedSubApi.getApiSubscriptionSummaries(
+                    { apiId },
+                    this._requestMetaData(),
+                );
+            }
+            if (fedSubApi && typeof fedSubApi.getApiCredentialSummaries === 'function') {
+                return fedSubApi.getApiCredentialSummaries(
+                    { apiId },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('getApiSubscriptionSummaries operation is not available in the API client');
         });
     }
 
