@@ -39,6 +39,42 @@ const subscriptionOptionsRenderers = {
     'option-groups': OptionGroupsRenderer,
 };
 
+function parseJsonSafely(value) {
+    if (!value || typeof value !== 'string') {
+        return value;
+    }
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+}
+
+const subscriptionOptionSelectionValidators = {
+    'subscription-plans': ({ selectedOption }) => {
+        const parsedSelected = parseJsonSafely(selectedOption);
+        return !!(parsedSelected && parsedSelected.id);
+    },
+    'option-groups': ({ body, selectedOption }) => {
+        const parsedBody = parseJsonSafely(body);
+        const parsedSelected = parseJsonSafely(selectedOption);
+        const groups = parsedBody?.groups || [];
+        const requiredGroups = groups.filter((group) => group.required !== false);
+
+        if (requiredGroups.length === 0) {
+            return true;
+        }
+        if (!parsedSelected || typeof parsedSelected !== 'object') {
+            return false;
+        }
+
+        return requiredGroups.every((group) => {
+            const selectedItem = parsedSelected[group.groupId];
+            return !!(selectedItem && selectedItem.id);
+        });
+    },
+};
+
 /**
  * Get credential renderer based on schema name only
  * @param {string} schemaName - Schema name from FederatedCredential.schemaName
@@ -83,6 +119,26 @@ export function getSubscriptionOptionsRenderer(schemaName) {
         return null;
     }
     return subscriptionOptionsRenderers[schemaName] || null;
+}
+
+/**
+ * Validate whether the current selected option is complete for the schema.
+ * Falls back to checking non-empty selection for unknown schemas.
+ * @param {string} schemaName - Schema name from FederatedSubscriptionOptions.schemaName
+ * @param {string|object} body - JSON body from FederatedSubscriptionOptions.body
+ * @param {string|object} selectedOption - Current selected option payload
+ * @returns {boolean} True if selection is complete
+ */
+export function isSubscriptionOptionSelectionComplete(schemaName, body, selectedOption) {
+    const validator = subscriptionOptionSelectionValidators[schemaName];
+    if (validator) {
+        return validator({ body, selectedOption });
+    }
+
+    if (typeof selectedOption === 'string') {
+        return selectedOption.trim().length > 0;
+    }
+    return !!selectedOption;
 }
 
 /**
