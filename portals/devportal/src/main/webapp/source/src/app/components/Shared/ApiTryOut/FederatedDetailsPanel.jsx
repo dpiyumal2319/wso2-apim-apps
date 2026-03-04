@@ -39,8 +39,8 @@ const FederatedDetailsPanel = (props) => {
         setAdvAuthHeaderValue,
     } = props;
 
-    const { api, subscribedApplications, subscriptionStatus } = useContext(ApiContext);
-    const [selectedSubscription, setSelectedSubscription] = useState('');
+    const { api, subscriptionStatus } = useContext(ApiContext);
+    const [selectedCredentialId, setSelectedCredentialId] = useState('');
     const [fedSubInfo, setFedSubInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [retrieving, setRetrieving] = useState(false);
@@ -59,33 +59,28 @@ const FederatedDetailsPanel = (props) => {
     }, [api?.id]);
 
     useEffect(() => {
-        if (subscribedApplications && subscribedApplications.length > 0 && !selectedSubscription) {
-            setSelectedSubscription(subscribedApplications[0].subscriptionId);
+        if (credentialSummaries.length > 0 && !selectedCredentialId) {
+            setSelectedCredentialId(credentialSummaries[0].credentialId);
         }
-    }, [subscribedApplications]);
+    }, [credentialSummaries, selectedCredentialId]);
 
     useEffect(() => {
-        if (selectedSubscription) {
-            const summary = credentialSummaries.find((s) => s.subscriptionId === selectedSubscription);
-            if (summary && !summary.isProvisioned) {
-                setFedSubInfo(null);
-                return;
-            }
+        if (selectedCredentialId) {
             setLoading(true);
             setFedSubInfo(null);
-            apiClient.getFederatedSubscription(selectedSubscription)
+            apiClient.getApiFederatedCredential(api.id, selectedCredentialId)
                 .then((response) => {
                     setFedSubInfo(response.body);
                     updateAuthValues(response.body);
                 })
                 .catch((error) => {
                     if (error.status !== 404) {
-                        console.error('Failed to fetch federated subscription', error);
+                        console.error('Failed to fetch federated credential', error);
                     }
                 })
                 .finally(() => setLoading(false));
         }
-    }, [selectedSubscription, credentialSummaries]);
+    }, [selectedCredentialId, api?.id]);
 
     const updateAuthValues = (info) => {
         if (!info) {
@@ -130,8 +125,8 @@ const FederatedDetailsPanel = (props) => {
         }
     };
 
-    const handleSubscriptionChange = (event) => {
-        setSelectedSubscription(event.target.value);
+    const handleCredentialSelectionChange = (event) => {
+        setSelectedCredentialId(event.target.value);
     };
 
     const handleCredentialChange = (event) => {
@@ -146,7 +141,7 @@ const FederatedDetailsPanel = (props) => {
 
     const handleRetrieve = () => {
         setRetrieving(true);
-        apiClient.retrieveFederatedCredential(selectedSubscription)
+        apiClient.retrieveApiFederatedCredential(api.id, selectedCredentialId)
             .then((response) => {
                 setFedSubInfo((prev) => ({
                     ...prev,
@@ -161,19 +156,9 @@ const FederatedDetailsPanel = (props) => {
             .finally(() => setRetrieving(false));
     };
 
-    // Build subscriptionId → summary map from fetched summaries
-    const summaryBySubscriptionId = Object.fromEntries(
-        credentialSummaries.map((s) => [s.subscriptionId, s]),
-    );
-
-    const selectedSummary = summaryBySubscriptionId[selectedSubscription];
-    const isProvisioned = selectedSummary ? selectedSummary.isProvisioned : true;
-
-    const hasSubscriptions = subscribedApplications && subscribedApplications.length > 0;
+    const hasCredentials = credentialSummaries && credentialSummaries.length > 0;
     const hasCredential = fedSubInfo && fedSubInfo.credential;
     const isRetrievable = hasCredential && fedSubInfo.credential.isValueRetrievable;
-
-    const gatewayType = fedSubInfo && fedSubInfo.gatewayType;
 
     // Read schema names directly from DTO envelopes (no body parsing)
     const credentialSchema = fedSubInfo?.credential?.schemaName || null;
@@ -202,7 +187,7 @@ const FederatedDetailsPanel = (props) => {
 
     return (
         <Box display='block' justifyContent='center' className={classes.authHeader}>
-            {!hasSubscriptions ? (
+            {!hasCredentials ? (
                 <Grid xs={8} md={6} className={classes.tokenType} item>
                     <Box mb={1} alignItems='center'>
                         <Typography variant='body1'>
@@ -255,9 +240,9 @@ const FederatedDetailsPanel = (props) => {
                                     id='Apis.Details.ApiConsole.FederatedDetailsPanel.credential'
                                 />
                             )}
-                            value={selectedSubscription}
-                            name='selectedSubscription'
-                            onChange={handleSubscriptionChange}
+                            value={selectedCredentialId}
+                            name='selectedCredentialId'
+                            onChange={handleCredentialSelectionChange}
                             helperText={(
                                 <FormattedMessage
                                     defaultMessage='Select a credential'
@@ -267,15 +252,19 @@ const FederatedDetailsPanel = (props) => {
                             margin='normal'
                             variant='outlined'
                         >
-                            {subscribedApplications.map((sub) => (
+                            {credentialSummaries.map((summary, index) => {
+                                const optionValue = summary.credentialId || `${summary.applicationId}-${index}`;
+                                const optionLabel = summary.name || summary.applicationName || optionValue;
+                                return (
                                 <MenuItem
-                                    value={sub.subscriptionId}
-                                    key={sub.subscriptionId}
+                                    value={optionValue}
+                                    key={optionValue}
                                     className={classes.menuItem}
                                 >
-                                    {summaryBySubscriptionId[sub.subscriptionId]?.name || sub.label}
+                                    {optionLabel}
                                 </MenuItem>
-                            ))}
+                                );
+                            })}
                         </TextField>
                     </Grid>
 
@@ -285,38 +274,7 @@ const FederatedDetailsPanel = (props) => {
                         </Box>
                     )}
 
-                    {!loading && !isProvisioned && (
-                        <Grid
-                            xs={8}
-                            md={6}
-                            className={classes.tokenType}
-                            item
-                            style={{ flexDirection: 'column', alignItems: 'flex-start' }}
-                        >
-                            <Box mb={1} alignItems='center'>
-                                <Typography variant='body1'>
-                                    <Box display='flex' alignItems='center' gap={1}>
-                                        <InfoIcon color='info' />
-                                        <div>
-                                            <FormattedMessage
-                                                id='Apis.Details.ApiConsole.FederatedDetailsPanel.not.provisioned'
-                                                defaultMessage='Keys have not been generated for this subscription.'
-                                            />
-                                            {' '}
-                                            <Link to={`/apis/${api.id}/credentials`}>
-                                                <FormattedMessage
-                                                    id='Apis.Details.ApiConsole.FederatedDetailsPanel.go.to.credentials'
-                                                    defaultMessage='Go to API Credentials page to generate one.'
-                                                />
-                                            </Link>
-                                        </div>
-                                    </Box>
-                                </Typography>
-                            </Box>
-                        </Grid>
-                    )}
-
-                    {!loading && isProvisioned && !hasCredential && (
+                    {!loading && !hasCredential && (
                         <Grid
                             xs={8}
                             md={6}
@@ -331,7 +289,7 @@ const FederatedDetailsPanel = (props) => {
                                         <div>
                                             <FormattedMessage
                                                 id='Apis.Details.ApiConsole.FederatedDetailsPanel.no.credential'
-                                                defaultMessage='No credential generated for this subscription.'
+                                                defaultMessage='Unable to load selected credential.'
                                             />
                                             {' '}
                                             <Link to={`/apis/${api.id}/credentials`}>
