@@ -45,6 +45,7 @@ import FederatedCredentialPanel from './FederatedCredentialPanel';
 import {
     getSubscriptionOptionsRenderer,
     getSubscriptionOptionsColumnHeader,
+    isSubscriptionOptionSelectionComplete,
     getCredentialRenderer,
     getInvocationRenderer,
     SelectedOptionPreview,
@@ -311,20 +312,26 @@ export default function FederatedApiCredentials() {
     };
 
     const hasOptions = !subscriptionSupport && subscriptionOptions && subscriptionOptions.body;
-    const requiresSelection = hasOptions && !selectedOption;
+    const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
+        subscriptionOptions?.schemaName,
+        subscriptionOptions?.body,
+        selectedOption,
+    );
     const noAppsAvailable = wizardApps.length === 0;
+    const hasNonActiveSubscriptions = (subscribedApplications || []).some(
+        (app) => app.status && app.status !== 'UNBLOCKED',
+    );
     let appDropdownHelperText = '';
     if (noAppsAvailable) {
         if (subscriptionSupport) {
-            const hasNonActiveSubscriptions = (subscribedApplications || []).some(
-                (app) => app.status && app.status !== 'UNBLOCKED',
-            );
             appDropdownHelperText = hasNonActiveSubscriptions
                 ? 'No active subscriptions. Your subscriptions may be pending approval or blocked.'
                 : 'No subscribed applications. Subscribe to this API first.';
         } else {
             appDropdownHelperText = 'No applications available. Create an application first.';
         }
+    } else if (subscriptionSupport) {
+        appDropdownHelperText = 'Only applications with active subscriptions are shown here.';
     }
     const resultCredential = resultData?.credential;
     const resultInvocation = resultData?.invocationInstruction;
@@ -345,6 +352,15 @@ export default function FederatedApiCredentials() {
                         />
                     </Typography>
                 </Box>
+                {subscriptionSupport && (
+                    <MuiAlert severity='info' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiCredentials.mode.subscription'
+                            defaultMessage={'When generating credentials, the application list includes only '
+                                + 'applications with an active subscription to this API.'}
+                        />
+                    </MuiAlert>
+                )}
                 {optionsLoading && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CircularProgress size={16} />
@@ -393,6 +409,22 @@ export default function FederatedApiCredentials() {
                         </Button>
                     </Box>
                 </Box>
+                {noAppsAvailable && (
+                    <MuiAlert severity='warning' sx={{ mb: 2 }}>
+                        {subscriptionSupport ? (
+                            <FormattedMessage
+                                id='FederatedApiCredentials.apps.empty.subscription'
+                                defaultMessage={'No application is currently available for key generation. '
+                                    + 'Subscribe an application to this API and wait until it becomes Active.'}
+                            />
+                        ) : (
+                            <FormattedMessage
+                                id='FederatedApiCredentials.apps.empty.direct'
+                                defaultMessage='No applications found. Create an application to generate credentials.'
+                            />
+                        )}
+                    </MuiAlert>
+                )}
 
                 {summariesLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -441,10 +473,18 @@ export default function FederatedApiCredentials() {
                                         <TableRow>
                                             <TableCell colSpan={5} align='center'>
                                                 <Typography variant='body2' color='text.secondary' sx={{ py: 3 }}>
-                                                    <FormattedMessage
-                                                        id='FederatedApiCredentials.empty'
-                                                        defaultMessage='No credentials found.'
-                                                    />
+                                                    {subscriptionSupport ? (
+                                                        <FormattedMessage
+                                                            id='FederatedApiCredentials.empty.with.subscription'
+                                                            defaultMessage={'No credentials found. '
+                                                                + 'Subscribe an application, then generate credentials.'}
+                                                        />
+                                                    ) : (
+                                                        <FormattedMessage
+                                                            id='FederatedApiCredentials.empty.without.subscription'
+                                                            defaultMessage='No credentials found. Click Generate Keys to create one.'
+                                                        />
+                                                    )}
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
@@ -512,10 +552,29 @@ export default function FederatedApiCredentials() {
                     />
                 </DialogTitle>
                 <DialogContent dividers>
-                    <Box sx={{
-                        display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
-                    }}
+                    <Box
+                        sx={{
+                            display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
+                        }}
                     >
+                        {subscriptionSupport && (
+                            <MuiAlert severity='info'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.wizard.mode.subscription'
+                                    defaultMessage={'Only applications with an active subscription to this API are shown. '
+                                        + 'If an application is missing, check its subscription status.'}
+                                />
+                            </MuiAlert>
+                        )}
+                        {noAppsAvailable && hasNonActiveSubscriptions && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.wizard.pending'
+                                    defaultMessage={'Subscriptions exist, but none are Active yet '
+                                        + '(for example Pending, On Hold, or Blocked).'}
+                                />
+                            </MuiAlert>
+                        )}
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <TextField
                                 select
@@ -571,6 +630,14 @@ export default function FederatedApiCredentials() {
                                 selectedOption={selectedOption}
                                 onSelect={setSelectedOption}
                             />
+                        )}
+                        {hasOptions && requiresSelection && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.option.required'
+                                    defaultMessage='Select an option to continue.'
+                                />
+                            </MuiAlert>
                         )}
                     </Box>
                 </DialogContent>

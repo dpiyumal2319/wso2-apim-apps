@@ -31,6 +31,7 @@ import TableRow from '@mui/material/TableRow';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import MuiAlert from '@mui/material/Alert';
 import { Link } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
@@ -200,16 +201,23 @@ const SubscriptionKeys = ({ application }) => {
                         >
                             <FormattedMessage
                                 id='Applications.Details.SubscriptionKeys.federated.apis'
-                                defaultMessage='Federated API Credentials'
+                                defaultMessage='API Credentials by API'
                             />
                         </Typography>
                     </Box>
                     <Typography variant='body2' className={classes.description}>
                         <FormattedMessage
                             id='Applications.Details.SubscriptionKeys.description'
-                            defaultMessage='This page lists federated credentials issued for this application across subscribed APIs.'
+                            defaultMessage='This page lists credentials generated for this application across APIs.'
                         />
                     </Typography>
+                    <MuiAlert severity='info' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='Applications.Details.SubscriptionKeys.guidance'
+                            defaultMessage={'Use View to inspect a credential and invocation details. '
+                                + 'Delete removes that credential only for the selected API.'}
+                        />
+                    </MuiAlert>
                     <Box className={classes.cardContent}>
                         <TableContainer>
                             <Table className={classes.credTable}>
@@ -260,8 +268,7 @@ const SubscriptionKeys = ({ application }) => {
                                                 <Typography variant='body2' color='text.secondary' sx={{ py: 3 }}>
                                                     <FormattedMessage
                                                         id='Applications.Details.SubscriptionKeys.empty'
-                                                        defaultMessage={'No federated credentials have'
-                                                            + ' been generated for this application yet.'}
+                                                        defaultMessage='No credentials have been generated for this application yet.'
                                                     />
                                                 </Typography>
                                             </TableCell>

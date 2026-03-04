@@ -34,6 +34,7 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
+import MuiAlert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
 import { useHistory } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
@@ -43,6 +44,7 @@ import { ApiContext } from '../ApiContext';
 import {
     getSubscriptionOptionsColumnHeader,
     getSubscriptionOptionsRenderer,
+    isSubscriptionOptionSelectionComplete,
     SelectedOptionPreview,
 } from './federated/CredentialRendererRegistry';
 
@@ -255,7 +257,14 @@ export default function FederatedApiSubscriptions() {
     const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
     const subscriptionActionDisabled = subscriptionSupport !== true;
     const hasOptions = !!(subscriptionOptions && subscriptionOptions.body);
-    const requiresSelection = hasOptions && !selectedOption;
+    const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
+        subscriptionOptions?.schemaName,
+        subscriptionOptions?.body,
+        selectedOption,
+    );
+    const hasLockedSubscriptions = summaries.some((summary) => summary.subscriptionStatus === 'DELETE_PENDING'
+        || summary.subscriptionStatus === 'BLOCKED'
+        || summary.subscriptionStatus === 'ON_HOLD');
 
     return (
         <Root sx={{ p: 3 }}>
@@ -282,6 +291,31 @@ export default function FederatedApiSubscriptions() {
                         </Button>
                     </Box>
                 </Box>
+                <MuiAlert severity='info' sx={{ mb: 2 }}>
+                    <FormattedMessage
+                        id='FederatedApiSubscriptions.info'
+                        defaultMessage={'Create a subscription for an application here. '
+                            + 'After it becomes Active, generate credentials from the Credentials page.'}
+                    />
+                </MuiAlert>
+                {noAppsAvailable && (
+                    <MuiAlert severity='warning' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiSubscriptions.noapps'
+                            defaultMessage='No applications found. Create an application first to subscribe.'
+                        />
+                    </MuiAlert>
+                )}
+                {hasLockedSubscriptions && !loading && (
+                    <MuiAlert severity='info' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiSubscriptions.locked'
+                            defaultMessage={'Some subscriptions are in a restricted state '
+                                + '(for example On Hold, Blocked, or Delete Pending). '
+                                + 'Unsubscribe is disabled for those entries.'}
+                        />
+                    </MuiAlert>
+                )}
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                         <CircularProgress size={24} />
@@ -443,6 +477,7 @@ export default function FederatedApiSubscriptions() {
                             onChange={(e) => setSelectedAppId(e.target.value)}
                             size='small'
                             disabled={noAppsAvailable || subscriptionActionDisabled}
+                            helperText='Select the application you want to subscribe to this API.'
                         >
                             {applicationsAvailable && applicationsAvailable.map((app) => (
                                 <MenuItem key={app.value} value={app.value}>
@@ -466,6 +501,14 @@ export default function FederatedApiSubscriptions() {
                             selectedOption,
                             onSelect: setSelectedOption,
                         })}
+                        {requiresSelection && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiSubscriptions.option.required'
+                                    defaultMessage='Select a subscription option to continue.'
+                                />
+                            </MuiAlert>
+                        )}
                     </Box>
                 </DialogContent>
                 <DialogActions>
