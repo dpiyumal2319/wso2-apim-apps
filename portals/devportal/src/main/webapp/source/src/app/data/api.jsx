@@ -1159,6 +1159,26 @@ export default class API extends Resource {
         });
     }
 
+    getApplicationCredentialSummaries(applicationId) {
+        return this.client.then((client) => {
+            const fedSubApi = client.apis['Federated Subscriptions'];
+            if (fedSubApi && typeof fedSubApi.getApplicationCredentialSummaries === 'function') {
+                return fedSubApi.getApplicationCredentialSummaries(
+                    { applicationId },
+                    this._requestMetaData(),
+                );
+            }
+            if (client.apis.Applications
+                && typeof client.apis.Applications.getApplicationCredentialSummaries === 'function') {
+                return client.apis.Applications.getApplicationCredentialSummaries(
+                    { applicationId },
+                    this._requestMetaData(),
+                );
+            }
+            throw new Error('getApplicationCredentialSummaries operation is not available in the API client');
+        });
+    }
+
     getApiSubscriptionSummaries(apiId) {
         return this.client.then((client) => {
             const fedSubApi = client.apis['Federated Subscriptions'];

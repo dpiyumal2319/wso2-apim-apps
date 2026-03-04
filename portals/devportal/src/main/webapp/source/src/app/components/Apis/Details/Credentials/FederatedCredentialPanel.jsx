@@ -132,14 +132,6 @@ const FederatedCredentialPanel = (props) => {
                     />
                 </Typography>
             </Box>
-            <Box mb={1}>
-                <Typography className={classes.subTitle} variant='h6' component='h6'>
-                    <FormattedMessage
-                        id='Apis.Details.Credentials.FederatedCredentialPanel.key.and.secret.title'
-                        defaultMessage='Key and Secret'
-                    />
-                </Typography>
-            </Box>
             {credential && (
                 <CredentialRenderer
                     body={credential.body}

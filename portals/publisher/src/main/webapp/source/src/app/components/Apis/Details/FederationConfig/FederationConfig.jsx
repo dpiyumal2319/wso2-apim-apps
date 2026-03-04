@@ -32,7 +32,7 @@ import APIContext from 'AppComponents/Apis/Details/components/ApiContext';
 import API from 'AppData/api.js';
 import AppAlert from 'AppComponents/Shared/Alert';
 import Progress from 'AppComponents/Shared/Progress';
-import {getSubscriptionOptionsEditor, getInvocationRenderer} from './FederationConfigRegistry';
+import { getSubscriptionOptionsEditor } from './FederationConfigRegistry';
 
 const PREFIX = 'FederationConfig';
 
@@ -127,9 +127,6 @@ function FederationConfig({ subscriptionSupported = false }) {
     const hasNoConfig = !config;
     const schemaName = displaySource?.subscriptionOptions?.schemaName;
     const OptionsEditor = getSubscriptionOptionsEditor(schemaName);
-
-    const invocationTemplate = displaySource?.invocationTemplate;
-    const InvocationRenderer = getInvocationRenderer(invocationTemplate?.schemaName);
 
     const handlePlanToggle = (planId, enabled) => {
         setCuratedPlans((prev) => {
@@ -356,20 +353,6 @@ function FederationConfig({ subscriptionSupported = false }) {
                             ? handleOptionGroupChange : handlePlanToggle}
                         disabled={saving}
                     />
-                </Paper>
-            )}
-
-            {/* Invocation Instruction (schema-driven, read-only from gateway snapshot) */}
-            {InvocationRenderer && invocationTemplate?.body && (
-                <Paper className={classes.paper} elevation={0} variant='outlined'>
-                    <Typography className={classes.sectionTitle} variant='subtitle1'>
-                        <FormattedMessage
-                            id='Apis.Details.FederationConfig.invocationTitle'
-                            defaultMessage='Invocation Instructions'
-                        />
-                    </Typography>
-                    <Divider sx={{ my: 1 }} />
-                    <InvocationRenderer body={invocationTemplate.body} />
                 </Paper>
             )}
 
