@@ -674,7 +674,6 @@
   "FederatedApiSubscriptions.dialog.title": "Subscribe to API",
   "FederatedApiSubscriptions.empty": "No subscriptions found. Click Subscribe to add one.",
   "FederatedApiSubscriptions.info": "Create a subscription for an application here. After it becomes Active, generate credentials from the Credentials page.",
-  "FederatedApiSubscriptions.locked": "Some subscriptions are in a restricted state (for example On Hold, Blocked, or Delete Pending). Unsubscribe is disabled for those entries.",
   "FederatedApiSubscriptions.noapps": "No applications found. Create an application first to subscribe.",
   "FederatedApiSubscriptions.option.required": "Select a subscription option to continue.",
   "FederatedApiSubscriptions.options.loading": "Loading subscription options...",
