@@ -286,7 +286,7 @@ function FederationConfig({ subscriptionSupported = false }) {
                             <Typography variant='subtitle1'>
                                 <FormattedMessage
                                     id='Apis.Details.FederationConfig.enableLabel'
-                                    defaultMessage='Enable Subscriptions'
+                                    defaultMessage='Subscription Validation'
                                 />
                             </Typography>
                         }
@@ -295,8 +295,9 @@ function FederationConfig({ subscriptionSupported = false }) {
                         <FormattedMessage
                             id='Apis.Details.FederationConfig.enableHelp'
                             defaultMessage={
-                                'When enabled, developers can create subscriptions and credentials '
-                                + 'for this API through the Developer Portal.'
+                                'When enabled, the gateway validates application subscriptions before allowing '
+                                + 'API access. When disabled, any valid credential can invoke this API without a '
+                                + 'subscription.'
                             }
                         />
                     </Typography>
