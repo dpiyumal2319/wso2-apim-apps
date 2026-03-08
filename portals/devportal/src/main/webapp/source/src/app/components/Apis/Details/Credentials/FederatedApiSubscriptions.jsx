@@ -262,9 +262,6 @@ export default function FederatedApiSubscriptions() {
         subscriptionOptions?.body,
         selectedOption,
     );
-    const hasLockedSubscriptions = summaries.some((summary) => summary.subscriptionStatus === 'DELETE_PENDING'
-        || summary.subscriptionStatus === 'BLOCKED'
-        || summary.subscriptionStatus === 'ON_HOLD');
 
     return (
         <Root sx={{ p: 3 }}>
@@ -303,16 +300,6 @@ export default function FederatedApiSubscriptions() {
                         <FormattedMessage
                             id='FederatedApiSubscriptions.noapps'
                             defaultMessage='No applications found. Create an application first to subscribe.'
-                        />
-                    </MuiAlert>
-                )}
-                {hasLockedSubscriptions && !loading && (
-                    <MuiAlert severity='info' sx={{ mb: 2 }}>
-                        <FormattedMessage
-                            id='FederatedApiSubscriptions.locked'
-                            defaultMessage={'Some subscriptions are in a restricted state '
-                                + '(for example On Hold, Blocked, or Delete Pending). '
-                                + 'Unsubscribe is disabled for those entries.'}
                         />
                     </MuiAlert>
                 )}
