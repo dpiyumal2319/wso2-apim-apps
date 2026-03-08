@@ -1206,6 +1206,7 @@ class API extends Resource {
             return client.execute({
                 pathName: '/gateways',
                 method: 'get',
+                requestContentType: 'application/json',
             });
         });
     }
@@ -1234,6 +1235,7 @@ class API extends Resource {
                 pathName: '/gateways/{gatewayId}',
                 method: 'delete',
                 parameters: { gatewayId },
+                requestContentType: 'application/json',
             });
         });
     }
@@ -1248,6 +1250,7 @@ class API extends Resource {
                 pathName: '/gateways/{gatewayId}/regenerate-token',
                 method: 'post',
                 parameters: { gatewayId },
+                requestContentType: 'application/json',
             });
         });
     }
