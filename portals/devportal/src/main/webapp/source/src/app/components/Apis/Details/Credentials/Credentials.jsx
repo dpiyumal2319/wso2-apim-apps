@@ -607,13 +607,15 @@ class Credentials extends React.Component {
                                                     defaultMessage='Application Name'
                                                 />
                                             </th>
-                                            <th className={classes.th}>
-                                                <FormattedMessage
-                                                    id={'Apis.Details.Credentials.Credentials.api.'
-                                                    + 'credentials.subscribed.apps.tier'}
-                                                    defaultMessage='Throttling Tier'
-                                                />
-                                            </th>
+                                            {!isFederated && (
+                                                <th className={classes.th}>
+                                                    <FormattedMessage
+                                                        id={'Apis.Details.Credentials.Credentials.api.'
+                                                        + 'credentials.subscribed.apps.tier'}
+                                                        defaultMessage='Throttling Tier'
+                                                    />
+                                                </th>
+                                            )}
                                             <th className={classes.th}>
                                                 <FormattedMessage
                                                     id={'Apis.Details.Credentials.Credentials.'

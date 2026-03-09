@@ -39,6 +39,7 @@ import MuiAlert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
+import CONSTANTS from 'AppData/Constants';
 import Alert from 'AppComponents/Shared/Alert';
 import { ApiContext } from '../ApiContext';
 import FederatedCredentialPanel from './FederatedCredentialPanel';
@@ -121,9 +122,12 @@ export default function FederatedApiCredentials() {
         api,
         applicationsAvailable,
         subscribedApplications,
-        subscriptionSupport,
         updateSubscriptionData,
     } = useContext(ApiContext);
+
+    const isSubValidationDisabled = api && api.tiers && api.tiers.length === 1
+        && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+    const subscriptionsEnabled = !isSubValidationDisabled;
 
     const [summaries, setSummaries] = useState([]);
     const [summariesLoading, setSummariesLoading] = useState(true);
@@ -181,7 +185,7 @@ export default function FederatedApiCredentials() {
 
     // Build the app list for the credential wizard based on subscription support state
     const wizardApps = (() => {
-        if (subscriptionSupport) {
+        if (subscriptionsEnabled) {
             // Only show apps with ACTIVE (UNBLOCKED) subscriptions
             return (subscribedApplications || []).filter(
                 (app) => app.status === 'UNBLOCKED',
@@ -311,7 +315,7 @@ export default function FederatedApiCredentials() {
         );
     };
 
-    const hasOptions = !subscriptionSupport && subscriptionOptions && subscriptionOptions.body;
+    const hasOptions = !subscriptionsEnabled && subscriptionOptions && subscriptionOptions.body;
     const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
         subscriptionOptions?.schemaName,
         subscriptionOptions?.body,
@@ -323,14 +327,14 @@ export default function FederatedApiCredentials() {
     );
     let appDropdownHelperText = '';
     if (noAppsAvailable) {
-        if (subscriptionSupport) {
+        if (subscriptionsEnabled) {
             appDropdownHelperText = hasNonActiveSubscriptions
                 ? 'No active subscriptions. Your subscriptions may be pending approval or blocked.'
                 : 'No subscribed applications. Subscribe to this API first.';
         } else {
             appDropdownHelperText = 'No applications available. Create an application first.';
         }
-    } else if (subscriptionSupport) {
+    } else if (subscriptionsEnabled) {
         appDropdownHelperText = 'Only applications with active subscriptions are shown here.';
     }
     const resultCredential = resultData?.credential;
@@ -352,7 +356,7 @@ export default function FederatedApiCredentials() {
                         />
                     </Typography>
                 </Box>
-                {subscriptionSupport && (
+                {subscriptionsEnabled && (
                     <MuiAlert severity='info' sx={{ mb: 2 }}>
                         <FormattedMessage
                             id='FederatedApiCredentials.mode.subscription'
@@ -411,7 +415,7 @@ export default function FederatedApiCredentials() {
                 </Box>
                 {noAppsAvailable && (
                     <MuiAlert severity='warning' sx={{ mb: 2 }}>
-                        {subscriptionSupport ? (
+                        {subscriptionsEnabled ? (
                             <FormattedMessage
                                 id='FederatedApiCredentials.apps.empty.subscription'
                                 defaultMessage={'No application is currently available for key generation. '
@@ -473,7 +477,7 @@ export default function FederatedApiCredentials() {
                                         <TableRow>
                                             <TableCell colSpan={5} align='center'>
                                                 <Typography variant='body2' color='text.secondary' sx={{ py: 3 }}>
-                                                    {subscriptionSupport ? (
+                                                    {subscriptionsEnabled ? (
                                                         <FormattedMessage
                                                             id='FederatedApiCredentials.empty.with.subscription'
                                                             defaultMessage={'No credentials found. '
@@ -557,7 +561,7 @@ export default function FederatedApiCredentials() {
                             display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
                         }}
                     >
-                        {subscriptionSupport && (
+                        {subscriptionsEnabled && (
                             <MuiAlert severity='info'>
                                 <FormattedMessage
                                     id='FederatedApiCredentials.wizard.mode.subscription'

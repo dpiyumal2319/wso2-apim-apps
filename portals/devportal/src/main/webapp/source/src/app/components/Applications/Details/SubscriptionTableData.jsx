@@ -288,10 +288,13 @@ class SubscriptionTableData extends React.Component {
             subscription: {
                 apiInfo, status, throttlingPolicy, subscriptionId, apiId, requestedThrottlingPolicy,
             },
+            showBusinessPlanColumn,
         } = this.props;
         const {
             openMenu, isMonetizedAPI, isDynamicUsagePolicy, openMenuEdit, selectedTier, tiers, isWebhookAPI, callbackLinkAnchor,
         } = this.state;
+        const isFederatedApi = apiInfo && apiInfo.gatewayVendor
+            && apiInfo.gatewayVendor.toLowerCase() !== 'wso2';
         const isSubValidationDisabled = tiers && tiers.length === 1
             && tiers[0].value.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
         const link = (
@@ -347,193 +350,209 @@ class SubscriptionTableData extends React.Component {
                         )}
                     </TableCell>
                     <TableCell>{apiInfo.lifeCycleStatus}</TableCell>
-                    {throttlingPolicy.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN) ? (
-                        <TableCell>
-                            {throttlingPolicy}
-                            {' '}
-                            <Tooltip
-                                placement='bottom'
-                                interactive
-                                aria-label='helper text for default subscription policy'
-                                title={(
-                                    <>
-                                        <FormattedMessage
-                                            id='Applications.Details.SubscriptionTableData.policy.default.tooltip'
-                                            defaultMessage='This is the default subscription policy used when
-                                            subscription validation was disabled.'
-                                        />
-                                    </>
-                                )}
-                                sx={{
-                                    backgroundColor: '#f5f5f9',
-                                    color: 'rgba(0, 0, 0, 0.87)',
-                                    maxWidth: 220,
-                                    fontSize: '12px',
-                                    border: '1px solid #dadde9',
-                                }}
-                            >
-                                <Box
-                                    component='span'
+                    {showBusinessPlanColumn && (isFederatedApi ? (
+                        <TableCell>-</TableCell>
+                    ) : (
+                        throttlingPolicy.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN) ? (
+                            <TableCell>
+                                {throttlingPolicy}
+                                {' '}
+                                <Tooltip
+                                    placement='bottom'
+                                    interactive
+                                    aria-label='helper text for default subscription policy'
+                                    title={(
+                                        <>
+                                            <FormattedMessage
+                                                id='Applications.Details.SubscriptionTableData.policy.default.tooltip'
+                                                defaultMessage='This is the default subscription policy used when
+                                                subscription validation was disabled.'
+                                            />
+                                        </>
+                                    )}
                                     sx={{
-                                        display: 'inline-flex',
-                                        verticalAlign: 'middle',
-                                        fontSize: '16px',
+                                        backgroundColor: '#f5f5f9',
+                                        color: 'rgba(0, 0, 0, 0.87)',
+                                        maxWidth: 220,
+                                        fontSize: '12px',
+                                        border: '1px solid #dadde9',
                                     }}
                                 >
-                                    <HelpOutline
+                                    <Box
+                                        component='span'
                                         sx={{
-                                            fontSize: 'inherit',
+                                            display: 'inline-flex',
+                                            verticalAlign: 'middle',
+                                            fontSize: '16px',
                                         }}
-                                    />
-                                </Box>
-                            </Tooltip>
-                        </TableCell>
-                    ) : (
-                        <TableCell>{throttlingPolicy}</TableCell>
-                    )}
+                                    >
+                                        <HelpOutline
+                                            sx={{
+                                                fontSize: 'inherit',
+                                            }}
+                                        />
+                                    </Box>
+                                </Tooltip>
+                            </TableCell>
+                        ) : (
+                            <TableCell>{throttlingPolicy}</TableCell>
+                        )
+                    ))}
                     <TableCell>{status}</TableCell>
                     <TableCell>
-                        <Button
-                            id={'edit-api-subscription-' + apiId}
-                            color='grey'
-                            onClick={this.handleRequestOpenEditMenu}
-                            startIcon={<Icon>edit</Icon>}
-                            disabled={tiers.length === 0 || status === SUBSCRIPTION_STATUS.BLOCKED
-                                || status === SUBSCRIPTION_STATUS.PROD_ONLY_BLOCKED}
-                        >
-                            <FormattedMessage
-                                id='Applications.Details.SubscriptionTableData.edit.text'
-                                defaultMessage='Edit'
-                            />
-                        </Button>
-                        <Dialog open={openMenuEdit} transition={Slide}>
-                            <DialogTitle>
+                        <>
+                            <Button
+                                id={'edit-api-subscription-' + apiId}
+                                color='grey'
+                                onClick={this.handleRequestOpenEditMenu}
+                                startIcon={<Icon>edit</Icon>}
+                                disabled={isFederatedApi || tiers.length === 0
+                                    || status === SUBSCRIPTION_STATUS.BLOCKED
+                                    || status === SUBSCRIPTION_STATUS.PROD_ONLY_BLOCKED}
+                            >
                                 <FormattedMessage
-                                    id='Applications.Details.SubscriptionTableData.update.subscription'
-                                    defaultMessage='Update Subscription'
+                                    id='Applications.Details.SubscriptionTableData.edit.text'
+                                    defaultMessage='Edit'
                                 />
-                            </DialogTitle>
-                            <DialogContent>
-                                <DialogContentText>
+                            </Button>
+                            <Dialog open={openMenuEdit} transition={Slide}>
+                                <DialogTitle>
                                     <FormattedMessage
-                                        id='Applications.Details.SubscriptionTableData.update.business.plan'
-                                        defaultMessage='Current Business Plan : '
+                                        id='Applications.Details.SubscriptionTableData.update.subscription'
+                                        defaultMessage='Update Subscription'
                                     />
-                                    {throttlingPolicy}
-                                    <div>
-                                        {(status === SUBSCRIPTION_STATUS.BLOCKED)
-                                            ? (
-                                                <FormattedMessage
-                                                    id={'Applications.Details.SubscriptionTableData.update.'
-                                                        + 'throttling.policy.blocked'}
-                                                    defaultMessage={'Subscription is in BLOCKED state. '
-                                                        + 'You need to unblock the subscription in order to edit the tier'}
-                                                />
-                                            )
-                                            : (status === SUBSCRIPTION_STATUS.ON_HOLD)
+                                </DialogTitle>
+                                <DialogContent>
+                                    <DialogContentText>
+                                        <FormattedMessage
+                                            id='Applications.Details.SubscriptionTableData.update.business.plan'
+                                            defaultMessage='Current Business Plan : '
+                                        />
+                                        {throttlingPolicy}
+                                        <div>
+                                            {(status === SUBSCRIPTION_STATUS.BLOCKED)
                                                 ? (
                                                     <FormattedMessage
                                                         id={'Applications.Details.SubscriptionTableData.update.'
-                                                            + 'throttling.policy.onHold'}
-                                                        defaultMessage={'Subscription is currently ON_HOLD state.'
-                                                            + ' You need to get approval to the subscription before editing the tier'}
+                                                            + 'throttling.policy.blocked'}
+                                                        defaultMessage={'Subscription is in BLOCKED state. '
+                                                            + 'You need to unblock the subscription in order to edit the tier'}
                                                     />
                                                 )
-                                                : (status === SUBSCRIPTION_STATUS.REJECTED)
+                                                : (status === SUBSCRIPTION_STATUS.ON_HOLD)
                                                     ? (
                                                         <FormattedMessage
                                                             id={'Applications.Details.SubscriptionTableData.update.'
-                                                                + 'throttling.policy.rejected'}
-                                                            defaultMessage={'Subscription is currently REJECTED state.'
-                                                                + ' You need to get approval to the subscription before editing the tier'}
+                                                                + 'throttling.policy.onHold'}
+                                                            defaultMessage={'Subscription is currently ON_HOLD state.'
+                                                                + ' You need to get approval to the subscription before editing the'
+                                                                + ' tier'}
                                                         />
                                                     )
-                                                    : (status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)
+                                                    : (status === SUBSCRIPTION_STATUS.REJECTED)
                                                         ? (
                                                             <FormattedMessage
                                                                 id={'Applications.Details.SubscriptionTableData.update.'
-                                                                    + 'throttling.policy.tierUpdatePending'}
-                                                                defaultMessage={'Subscription is currently TIER_UPDATE_PENDING state.'
-                                                                    + ' You need to get approval to the existing subscription edit request'
-                                                                    + ' before editing the tier'}
+                                                                    + 'throttling.policy.rejected'}
+                                                                defaultMessage={'Subscription is currently REJECTED state.'
+                                                                    + ' You need to get approval to the subscription before editing'
+                                                                    + ' the tier'}
                                                             />
                                                         )
-                                                        : (
-                                                            <div>
-                                                                <Autocomplete
-                                                                    id='application-policy'
-                                                                    disableClearable
-                                                                    options={tiers}
-                                                                    getOptionLabel={(option) => option.label ?? option}
-                                                                    getOptionSelected={(option, value) => option.value === value}
-                                                                    value={selectedTier}
-                                                                    onChange={(e, newValue) => this.setSelectedTier(newValue.value)}
-                                                                    renderInput={(params) => (
-                                                                        <TextField
-                                                                            id='outlined-select-currency'
-                                                                            name='throttlingPolicy'
-                                                                            required
-                                                                            {...params}
-                                                                            label={(
-                                                                                <FormattedMessage
-                                                                                    defaultMessage='Business Plan'
-                                                                                    id={'Applications.Details.SubscriptionTableData.'
-                                                                                        + 'update.business.plan.name'}
-                                                                                />
-                                                                            )}
-                                                                            helperText={(
-                                                                                <FormattedMessage
-                                                                                    defaultMessage={'Assign a new Business plan to the '
-                                                                                        + 'existing subscription'}
-                                                                                    id={'Applications.Details.SubscriptionTableData.'
-                                                                                        + 'update.throttling.policy.helper'}
-                                                                                />
-                                                                            )}
-                                                                            margin='normal'
-                                                                            variant='outlined'
-                                                                        />
-                                                                    )}
+                                                        : (status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)
+                                                            ? (
+                                                                <FormattedMessage
+                                                                    id={'Applications.Details.SubscriptionTableData.update.'
+                                                                        + 'throttling.policy.tierUpdatePending'}
+                                                                    defaultMessage={'Subscription is currently'
+                                                                        + ' TIER_UPDATE_PENDING state.'
+                                                                        + ' You need to get approval to the existing subscription'
+                                                                        + ' edit request'
+                                                                        + ' before editing the tier'}
                                                                 />
-                                                                {(status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)
-                                                                    && (
-                                                                        <div>
-                                                                            <FormattedMessage
-                                                                                id={'Applications.Details.SubscriptionTableData.update.'
-                                                                                    + 'throttling.policy.tier.update'}
-                                                                                defaultMessage='Pending Tier Update : '
+                                                            )
+                                                            : (
+                                                                <div>
+                                                                    <Autocomplete
+                                                                        id='application-policy'
+                                                                        disableClearable
+                                                                        options={tiers}
+                                                                        getOptionLabel={(option) => option.label ?? option}
+                                                                        getOptionSelected={(option, value) => option.value === value}
+                                                                        value={selectedTier}
+                                                                        onChange={(e, newValue) => this.setSelectedTier(newValue.value)}
+                                                                        renderInput={(params) => (
+                                                                            <TextField
+                                                                                id='outlined-select-currency'
+                                                                                name='throttlingPolicy'
+                                                                                required
+                                                                                {...params}
+                                                                                label={(
+                                                                                    <FormattedMessage
+                                                                                        defaultMessage='Business Plan'
+                                                                                        id={'Applications'
+                                                                                            + '.Details.SubscriptionTableData.'
+                                                                                            + 'update.business.plan.name'}
+                                                                                    />
+                                                                                )}
+                                                                                helperText={(
+                                                                                    <FormattedMessage
+                                                                                        defaultMessage={'Assign a new'
+                                                                                                + ' Business plan to the '
+                                                                                            + 'existing subscription'}
+                                                                                        id={'Applications'
+                                                                                            + '.Details.SubscriptionTableData.'
+                                                                                            + 'update.throttling.policy.helper'}
+                                                                                    />
+                                                                                )}
+                                                                                margin='normal'
+                                                                                variant='outlined'
                                                                             />
-                                                                            {requestedThrottlingPolicy}
-                                                                        </div>
-                                                                    )}
-                                                            </div>
-                                                        )}
-                                    </div>
-                                </DialogContentText>
-                            </DialogContent>
-                            <DialogActions>
-                                <Button dense color='grey' onClick={this.handleRequestCloseEditMenu}>
-                                    <FormattedMessage
-                                        id='Applications.Details.SubscriptionTableData.cancel'
-                                        defaultMessage='Cancel'
-                                    />
-                                </Button>
-                                <Button
-                                    variant='contained'
-                                    disabled={(status === SUBSCRIPTION_STATUS.BLOCKED || status === SUBSCRIPTION_STATUS.ON_HOLD
-                                        || status === SUBSCRIPTION_STATUS.REJECTED || status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)}
-                                    dense
-                                    color='primary'
-                                    onClick={() => this.handleSubscriptionTierUpdate(apiId,
-                                        subscriptionId, selectedTier, status, throttlingPolicy)}
-                                    data-testid='subscription-tier-update-button'
-                                >
-                                    <FormattedMessage
-                                        id='Applications.Details.SubscriptionTableData.update'
-                                        defaultMessage='Update'
-                                    />
-                                </Button>
-                            </DialogActions>
-                        </Dialog>
+                                                                        )}
+                                                                    />
+                                                                    {(status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)
+                                                                        && (
+                                                                            <div>
+                                                                                <FormattedMessage
+                                                                                    id={'Applications'
+                                                                                        + '.Details.SubscriptionTableData.update.'
+                                                                                        + 'throttling.policy.tier.update'}
+                                                                                    defaultMessage='Pending Tier Update : '
+                                                                                />
+                                                                                {requestedThrottlingPolicy}
+                                                                            </div>
+                                                                        )}
+                                                                </div>
+                                                            )}
+                                        </div>
+                                    </DialogContentText>
+                                </DialogContent>
+                                <DialogActions>
+                                    <Button dense color='grey' onClick={this.handleRequestCloseEditMenu}>
+                                        <FormattedMessage
+                                            id='Applications.Details.SubscriptionTableData.cancel'
+                                            defaultMessage='Cancel'
+                                        />
+                                    </Button>
+                                    <Button
+                                        variant='contained'
+                                        disabled={(status === SUBSCRIPTION_STATUS.BLOCKED || status === SUBSCRIPTION_STATUS.ON_HOLD
+                                            || status === SUBSCRIPTION_STATUS.REJECTED
+                                            || status === SUBSCRIPTION_STATUS.TIER_UPDATE_PENDING)}
+                                        dense
+                                        color='primary'
+                                        onClick={() => this.handleSubscriptionTierUpdate(apiId,
+                                            subscriptionId, selectedTier, status, throttlingPolicy)}
+                                        data-testid='subscription-tier-update-button'
+                                    >
+                                        <FormattedMessage
+                                            id='Applications.Details.SubscriptionTableData.update'
+                                            defaultMessage='Update'
+                                        />
+                                    </Button>
+                                </DialogActions>
+                            </Dialog>
+                        </>
                         <ScopeValidation
                             resourcePath={resourcePaths.SINGLE_SUBSCRIPTION}
                             resourceMethod={resourceMethods.DELETE}
@@ -619,5 +638,10 @@ SubscriptionTableData.propTypes = {
     }).isRequired,
     handleSubscriptionDelete: PropTypes.func.isRequired,
     handleSubscriptionUpdate: PropTypes.func.isRequired,
+    showBusinessPlanColumn: PropTypes.bool,
+};
+
+SubscriptionTableData.defaultProps = {
+    showBusinessPlanColumn: true,
 };
 export default SubscriptionTableData;

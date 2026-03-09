@@ -36,7 +36,6 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import MuiAlert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
-import { useHistory } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import Alert from 'AppComponents/Shared/Alert';
 import Api from 'AppData/api';
@@ -114,13 +113,11 @@ export default function FederatedApiSubscriptions() {
         updateSubscriptionData,
     } = useContext(ApiContext);
     const restApi = new Api();
-    const history = useHistory();
 
     const [summaries, setSummaries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [optionsLoading, setOptionsLoading] = useState(false);
     const [subscriptionOptions, setSubscriptionOptions] = useState(null);
-    const [subscriptionSupport, setSubscriptionSupport] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [unsubscribing, setUnsubscribing] = useState(null);
@@ -147,19 +144,11 @@ export default function FederatedApiSubscriptions() {
         restApi.getApiSubscriptionSupport(api.id)
             .then((response) => {
                 const supportInfo = response.body || {};
-                const isSupported = supportInfo.subscriptionSupport === true;
-                setSubscriptionSupport(isSupported);
-                if (!isSupported) {
-                    history.replace(`/apis/${api.id}/credentials`);
-                    return;
-                }
                 setSubscriptionOptions(supportInfo.subscriptionOptions || null);
             })
             .catch((error) => {
                 console.error('Failed to load subscription support', error);
-                setSubscriptionSupport(false);
                 setSubscriptionOptions(null);
-                history.replace(`/apis/${api.id}/credentials`);
             })
             .finally(() => setOptionsLoading(false));
     };
@@ -167,17 +156,9 @@ export default function FederatedApiSubscriptions() {
     useEffect(() => {
         if (api?.id) {
             loadSubscriptionSupport();
+            loadSummaries();
         }
     }, [api?.id]);
-
-    useEffect(() => {
-        if (subscriptionSupport === true) {
-            loadSummaries();
-        } else {
-            setSummaries([]);
-            setLoading(false);
-        }
-    }, [subscriptionSupport]);
 
     useEffect(() => {
         if (applicationsAvailable && applicationsAvailable.length > 0 && !selectedAppId) {
@@ -198,10 +179,6 @@ export default function FederatedApiSubscriptions() {
     };
 
     const handleCreateSubscription = () => {
-        if (subscriptionSupport !== true) {
-            Alert.error('Federated subscriptions are not supported for this API.');
-            return;
-        }
         if (!selectedAppId) {
             Alert.error('Please select an application');
             return;
@@ -241,10 +218,6 @@ export default function FederatedApiSubscriptions() {
     };
 
     const handleUnsubscribe = (subscriptionId) => {
-        if (subscriptionSupport !== true) {
-            Alert.error('Federated subscriptions are not supported for this API.');
-            return;
-        }
         setUnsubscribing(subscriptionId);
         restApi.deleteFederatedSubscription(subscriptionId)
             .then(() => {
@@ -261,7 +234,7 @@ export default function FederatedApiSubscriptions() {
 
     const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
     const noExistingSubscriptions = !subscribedApplications || subscribedApplications.length === 0;
-    const subscriptionActionDisabled = subscriptionSupport !== true;
+    const subscriptionActionDisabled = false;
     const hasOptions = !!(subscriptionOptions && subscriptionOptions.body);
     const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
         subscriptionOptions?.schemaName,

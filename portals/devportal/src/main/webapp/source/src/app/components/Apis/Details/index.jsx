@@ -77,7 +77,6 @@ const LoadableSwitch = withRouter((props) => {
     const {
         match,
         api,
-        subscriptionSupport,
         setbreadcrumbDocument,
         apiChatEnabled,
     } = props;
@@ -135,13 +134,12 @@ const LoadableSwitch = withRouter((props) => {
                             if (!isFederated) {
                                 return <Redirect to={`/apis/${entityUuid}/credentials`} />;
                             }
-                            if (subscriptionSupport === null) {
-                                return <Progress />;
+                            const isSubDisabled = api && api.tiers && api.tiers.length === 1
+                                && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+                            if (isSubDisabled) {
+                                return <Redirect to={`/apis/${entityUuid}/credentials`} />;
                             }
-                            if (subscriptionSupport === true) {
-                                return <FederatedApiSubscriptions {...routeProps} />;
-                            }
-                            return <Redirect to={`/apis/${entityUuid}/credentials`} />;
+                            return <FederatedApiSubscriptions {...routeProps} />;
                         }}
                     />
                 )}
@@ -384,7 +382,6 @@ class DetailsLegacy extends React.Component {
                             .then((response) => {
                                 this.setState({
                                     subscriptionStatus: response.body.subscriptionStatus,
-                                    subscriptionSupport: response.body.subscriptionSupport === true,
                                 });
                             })
                             .catch((error) => {
@@ -392,12 +389,11 @@ class DetailsLegacy extends React.Component {
                                 // On error, treat as OPEN (graceful fallback)
                                 this.setState({
                                     subscriptionStatus: 'OPEN',
-                                    subscriptionSupport: false,
                                 });
                             });
                     } else {
                         // WSO2 gateway - subscriptions work as usual
-                        this.setState({ subscriptionStatus: null, subscriptionSupport: false });
+                        this.setState({ subscriptionStatus: null });
                     }
                 })
                 .catch((error) => {
@@ -488,7 +484,6 @@ class DetailsLegacy extends React.Component {
             tryOutExpanded: true,
             apiChatEnabled: false,
             subscriptionStatus: null, // null = loading, 'OPEN' | 'SECURED'
-            subscriptionSupport: null,
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -593,7 +588,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionSupport,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled,
         } = this.state;
         const {
             custom: {
@@ -688,7 +683,7 @@ class DetailsLegacy extends React.Component {
                             />
                             {user && showCredentials && !isSubValidationDisabled && (
                                 <>
-                                    {isFederated && subscriptionSupport && (
+                                    {isFederated && (
                                         <LeftMenuItem
                                             text={(
                                                 <FormattedMessage
@@ -944,7 +939,6 @@ class DetailsLegacy extends React.Component {
                             <PortalModeRouteGuard>
                                 <LoadableSwitch
                                     api={api}
-                                    subscriptionSupport={subscriptionSupport}
                                     updateSubscriptionData={this.updateSubscriptionData}
                                     setbreadcrumbDocument={this.setbreadcrumbDocument}
                                     apiChatEnabled={apiChatEnabled}

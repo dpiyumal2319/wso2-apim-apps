@@ -44,11 +44,13 @@ const subscriptionTableRow = (props) => {
                         {app.label}
                     </Typography>
                 </td>
-                <td>
-                    <Typography variant='body2'>
-                        {app.policy}
-                    </Typography>
-                </td>
+                {!isFederated && (
+                    <td>
+                        <Typography variant='body2'>
+                            {app.policy}
+                        </Typography>
+                    </td>
+                )}
                 <td>
                     <Typography variant='body2'>
                         {app.status}
