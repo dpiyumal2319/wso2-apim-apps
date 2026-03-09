@@ -107,7 +107,12 @@ const Root = styled('div')(({ theme }) => ({
 }));
 
 export default function FederatedApiSubscriptions() {
-    const { api, applicationsAvailable, updateSubscriptionData } = useContext(ApiContext);
+    const {
+        api,
+        applicationsAvailable,
+        subscribedApplications,
+        updateSubscriptionData,
+    } = useContext(ApiContext);
     const restApi = new Api();
     const history = useHistory();
 
@@ -255,6 +260,7 @@ export default function FederatedApiSubscriptions() {
     };
 
     const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
+    const noExistingSubscriptions = !subscribedApplications || subscribedApplications.length === 0;
     const subscriptionActionDisabled = subscriptionSupport !== true;
     const hasOptions = !!(subscriptionOptions && subscriptionOptions.body);
     const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
@@ -295,7 +301,7 @@ export default function FederatedApiSubscriptions() {
                             + 'After it becomes Active, generate credentials from the Credentials page.'}
                     />
                 </MuiAlert>
-                {noAppsAvailable && (
+                {noAppsAvailable && noExistingSubscriptions && (
                     <MuiAlert severity='warning' sx={{ mb: 2 }}>
                         <FormattedMessage
                             id='FederatedApiSubscriptions.noapps'
