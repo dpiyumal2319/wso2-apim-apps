@@ -34,6 +34,8 @@ import AppAlert from 'AppComponents/Shared/Alert';
 import Progress from 'AppComponents/Shared/Progress';
 import { getSubscriptionOptionsEditor } from './FederationConfigRegistry';
 
+const SUBSCRIPTIONLESS_PLAN = 'DefaultSubscriptionless';
+
 const PREFIX = 'FederationConfig';
 
 const classes = {
@@ -85,8 +87,10 @@ function FederationConfig({ subscriptionSupported = false }) {
     const [config, setConfig] = useState(null);
     const [error, setError] = useState(null);
 
-    // Editable state
-    const [subscriptionEnabled, setSubscriptionEnabled] = useState(false);
+    // Derive subscription enabled state from API's policies (not from federation config)
+    const isSubValidationDisabled = api && api.policies && api.policies.length === 1
+        && api.policies[0].includes(SUBSCRIPTIONLESS_PLAN);
+    const [subscriptionEnabled, setSubscriptionEnabled] = useState(!isSubValidationDisabled);
     const [curatedPlans, setCuratedPlans] = useState(null);
 
     const fetchConfig = useCallback(() => {
@@ -96,7 +100,6 @@ function FederationConfig({ subscriptionSupported = false }) {
             .then((response) => {
                 const data = response.body;
                 setConfig(data);
-                setSubscriptionEnabled(data.subscriptionEnabled || false);
 
                 // Use publisherCuratedConfig (has enabled flags) or fall back to live snapshot
                 const source = data.publisherCuratedConfig || data.gatewaySupportSnapshot;
@@ -107,7 +110,6 @@ function FederationConfig({ subscriptionSupported = false }) {
                 console.error('Error fetching federation config:', err);
                 if (err.status === 404) {
                     setConfig(null);
-                    setSubscriptionEnabled(false);
                     setCuratedPlans(null);
                 } else {
                     setError('Failed to load federation configuration.');
