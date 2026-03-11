@@ -276,6 +276,16 @@ class APICardView extends React.Component {
                 }),
             },
             {
+                name: 'gatewayVendor',
+                label: intl.formatMessage({
+                    id: 'Apis.Listing.APIList.gateway.vendor',
+                    defaultMessage: 'Gateway Vendor',
+                }),
+                options: {
+                    display: 'excluded',
+                },
+            },
+            {
                 name: 'throttlingPolicies',
                 label: intl.formatMessage({
                     id: isMCPServersRoute
@@ -288,6 +298,9 @@ class APICardView extends React.Component {
                         if (tableMeta.rowData) {
                             const apiId = tableMeta.rowData[0];
                             const isSubscriptionAvailable = tableMeta.rowData[1];
+                            const gatewayVendor = tableMeta.rowData[5];
+                            const isFederatedApi = gatewayVendor
+                                && gatewayVendor.toLowerCase() !== 'wso2';
                             const policies = value;
                             if (!isSubscriptionAvailable) {
                                 return (intl.formatMessage({
@@ -310,7 +323,8 @@ class APICardView extends React.Component {
                                     key={apiId}
                                     policies={policies}
                                     apiId={apiId}
-                                    handleSubscribe={(app, api, policy) => handleSubscribe(app, api, policy)}
+                                    isFederatedApi={isFederatedApi}
+                                    handleSubscribe={handleSubscribe}
                                     applicationId={applicationId}
                                 />
                             );

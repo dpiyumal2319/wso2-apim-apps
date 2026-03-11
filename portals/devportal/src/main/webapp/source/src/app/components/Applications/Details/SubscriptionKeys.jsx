@@ -22,6 +22,8 @@ import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -31,12 +33,26 @@ import TableRow from '@mui/material/TableRow';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import AddIcon from '@mui/icons-material/Add';
 import MuiAlert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Divider from '@mui/material/Divider';
 import { Link } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
+import Subscription from 'AppData/Subscription';
+import CONSTANTS from 'AppData/Constants';
 import { getBasePath } from 'AppUtils/utils';
-import { SelectedOptionPreview } from 'AppComponents/Apis/Details/Credentials/federated/CredentialRendererRegistry';
+import {
+    getCredentialRenderer,
+    getInvocationRenderer,
+    getSubscriptionOptionsRenderer,
+    isSubscriptionOptionSelectionComplete,
+    SelectedOptionPreview,
+} from 'AppComponents/Apis/Details/Credentials/federated/CredentialRendererRegistry';
 import Alert from 'AppComponents/Shared/Alert';
 import FederatedCredentialPanel from 'AppComponents/Apis/Details/Credentials/FederatedCredentialPanel';
 
@@ -121,16 +137,54 @@ const Root = styled('div')(({ theme }) => ({
  * @returns {JSX.Element} The subscription keys component
  */
 const SubscriptionKeys = ({ application }) => {
+    const restApi = new Api();
     const [credentialSummaries, setCredentialSummaries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [expandedRow, setExpandedRow] = useState(null);
     const [deletingCredential, setDeletingCredential] = useState(null);
+    const [eligibleApis, setEligibleApis] = useState([]);
+    const [eligibleApisLoading, setEligibleApisLoading] = useState(false);
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [selectedApiId, setSelectedApiId] = useState('');
+    const [credentialName, setCredentialName] = useState('');
+    const [creatingCredential, setCreatingCredential] = useState(false);
+    const [subscriptionOptions, setSubscriptionOptions] = useState(null);
+    const [optionsLoading, setOptionsLoading] = useState(false);
+    const [selectedOption, setSelectedOption] = useState(null);
+    const [supportNotConfigured, setSupportNotConfigured] = useState(false);
+    const [resultDialogOpen, setResultDialogOpen] = useState(false);
+    const [resultData, setResultData] = useState(null);
+
+    const selectedApiMeta = eligibleApis.find((apiItem) => apiItem.id === selectedApiId);
+    const optionsSelectableAtKeyGeneration = !!selectedApiMeta?.subscriptionless;
+    const optionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
+    const hasOptions = optionsSelectableAtKeyGeneration
+        && !!(subscriptionOptions && subscriptionOptions.body && optionsRenderer);
+    const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
+        subscriptionOptions?.schemaName,
+        subscriptionOptions?.body,
+        selectedOption,
+    );
+    const selectedApiNeedsActiveSubscription = !!selectedApiMeta && !selectedApiMeta.subscriptionless;
+    const selectedApiMissingActiveSubscription = selectedApiNeedsActiveSubscription
+        && !selectedApiMeta?.hasActiveSubscription;
+    const resultCredential = resultData?.credential;
+    const resultInvocation = resultData?.invocationInstruction;
+    const ResultCredentialRenderer = getCredentialRenderer(resultCredential?.schemaName);
+    const ResultInvocationRenderer = getInvocationRenderer(resultInvocation?.schemaName);
+    const isWriteOnce = resultCredential && resultCredential.isValueRetrievable === false;
+
+    const isFederatedApi = (apiItem) => !!(apiItem?.gatewayVendor && apiItem.gatewayVendor.toLowerCase() !== 'wso2');
+    const isSubscriptionlessApi = (apiItem) => {
+        const policies = apiItem?.throttlingPolicies || [];
+        return policies.length === 1
+            && policies[0].includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+    };
 
     const fetchCredentialSummaries = async () => {
         setLoading(true);
         try {
-            const client = new Api();
-            const response = await client.getApplicationCredentialSummaries(application.applicationId);
+            const response = await restApi.getApplicationCredentialSummaries(application.applicationId);
             setCredentialSummaries(response?.body?.list || []);
         } catch (error) {
             console.error('Failed to fetch application credential summaries:', error);
@@ -140,11 +194,166 @@ const SubscriptionKeys = ({ application }) => {
         }
     };
 
+    const fetchEligibleApis = async () => {
+        setEligibleApisLoading(true);
+        try {
+            const subscriptionClient = new Subscription();
+            const [subResponse, apisResponse] = await Promise.all([
+                subscriptionClient.getSubscriptions(null, application.applicationId, 1000),
+                restApi.getAllAPIs({ query: 'status:published', limit: 1000, offset: 0 }),
+            ]);
+
+            const activeSubscribedApiIds = new Set(
+                (subResponse?.body?.list || [])
+                    .filter((sub) => isFederatedApi(sub.apiInfo) && sub.status === 'UNBLOCKED')
+                    .map((sub) => sub.apiId),
+            );
+
+            const federatedApis = (apisResponse?.body?.list || [])
+                .filter((apiItem) => isFederatedApi(apiItem))
+                .map((apiItem) => ({
+                    id: apiItem.id,
+                    apiName: apiItem.name,
+                    apiVersion: apiItem.version,
+                    displayName: apiItem.displayName,
+                    subscriptionless: isSubscriptionlessApi(apiItem),
+                    hasActiveSubscription: activeSubscribedApiIds.has(apiItem.id),
+                }));
+
+            const sortedApis = federatedApis.sort((a, b) => {
+                const aLabel = (a.displayName || a.apiName || '').toLowerCase();
+                const bLabel = (b.displayName || b.apiName || '').toLowerCase();
+                return aLabel.localeCompare(bLabel);
+            });
+            setEligibleApis(sortedApis);
+        } catch (error) {
+            console.error('Failed to fetch eligible federated APIs for credential generation:', error);
+            setEligibleApis([]);
+        } finally {
+            setEligibleApisLoading(false);
+        }
+    };
+
+    const fetchSubscriptionOptions = async (apiId) => {
+        if (!apiId) {
+            setSubscriptionOptions(null);
+            setSupportNotConfigured(false);
+            return;
+        }
+        setOptionsLoading(true);
+        setSupportNotConfigured(false);
+        try {
+            const response = await restApi.getApiSubscriptionSupport(apiId);
+            setSubscriptionOptions(response?.body?.subscriptionOptions || null);
+            setSelectedOption(null);
+        } catch (error) {
+            console.error('Failed to fetch subscription options:', error);
+            setSubscriptionOptions(null);
+            setSelectedOption(null);
+            if (error?.status === 404) {
+                setSupportNotConfigured(true);
+            }
+        } finally {
+            setOptionsLoading(false);
+        }
+    };
+
+    const handleOpenCreateDialog = () => {
+        setCreateDialogOpen(true);
+        if (!selectedApiId && eligibleApis.length > 0) {
+            setSelectedApiId(eligibleApis[0].id);
+        }
+    };
+
+    const handleCloseCreateDialog = () => {
+        if (creatingCredential) {
+            return;
+        }
+        setCreateDialogOpen(false);
+        setCredentialName('');
+        setSelectedOption(null);
+    };
+
+    const handleCreateCredential = async () => {
+        if (!selectedApiId) {
+            Alert.error('Select an API');
+            return;
+        }
+        if (!credentialName.trim()) {
+            Alert.error('Provide a credential name');
+            return;
+        }
+        if (requiresSelection) {
+            Alert.error('Select a subscription option to continue');
+            return;
+        }
+        if (selectedApiMissingActiveSubscription) {
+            Alert.error('You need an active subscription to generate credentials for the selected API.');
+            return;
+        }
+        if (supportNotConfigured) {
+            Alert.error('This API does not support credential generation. Please contact your administrator.');
+            return;
+        }
+
+        let wrappedSelectedOption = null;
+        if (optionsSelectableAtKeyGeneration && selectedOption && subscriptionOptions) {
+            wrappedSelectedOption = JSON.stringify({
+                schemaName: subscriptionOptions.schemaName,
+                body: selectedOption,
+            });
+        }
+
+        setCreatingCredential(true);
+        try {
+            const response = await restApi.createFederatedCredentialForApi(
+                selectedApiId,
+                application.applicationId,
+                credentialName,
+                wrappedSelectedOption,
+            );
+            Alert.info('Credential generated successfully');
+            handleCloseCreateDialog();
+            setResultData(response?.body || null);
+            setResultDialogOpen(true);
+            await fetchCredentialSummaries();
+        } catch (error) {
+            if (error?.status === 409) {
+                Alert.error('A credential already exists for this API and application context');
+            } else {
+                Alert.error('Failed to generate credential');
+            }
+            console.error('Failed to create federated credential:', error);
+        } finally {
+            setCreatingCredential(false);
+        }
+    };
+
     useEffect(() => {
         if (application?.applicationId) {
             fetchCredentialSummaries();
+            fetchEligibleApis();
         }
     }, [application?.applicationId]);
+
+    useEffect(() => {
+        if (!selectedApiId && eligibleApis.length > 0) {
+            setSelectedApiId(eligibleApis[0].id);
+            return;
+        }
+        if (selectedApiId && !eligibleApis.some((apiItem) => apiItem.id === selectedApiId)) {
+            setSelectedApiId(eligibleApis.length > 0 ? eligibleApis[0].id : '');
+        }
+    }, [eligibleApis, selectedApiId]);
+
+    useEffect(() => {
+        if (createDialogOpen && selectedApiId) {
+            fetchSubscriptionOptions(selectedApiId);
+        } else if (!createDialogOpen) {
+            setSubscriptionOptions(null);
+            setSelectedOption(null);
+        }
+    }, [createDialogOpen, selectedApiId]);
 
     const handleDeleteCredential = async (summary) => {
         if (!summary?.credentialId || !summary?.apiId) {
@@ -204,6 +413,20 @@ const SubscriptionKeys = ({ application }) => {
                                 defaultMessage='API Credentials by API'
                             />
                         </Typography>
+                        <Box sx={{ ml: 'auto' }}>
+                            <Button
+                                variant='contained'
+                                color='primary'
+                                startIcon={<AddIcon />}
+                                onClick={handleOpenCreateDialog}
+                                disabled={eligibleApisLoading || eligibleApis.length === 0}
+                            >
+                                <FormattedMessage
+                                    id='Applications.Details.SubscriptionKeys.generate.credential'
+                                    defaultMessage='Generate Credential'
+                                />
+                            </Button>
+                        </Box>
                     </Box>
                     <Typography variant='body2' className={classes.description}>
                         <FormattedMessage
@@ -218,6 +441,14 @@ const SubscriptionKeys = ({ application }) => {
                                 + 'Delete removes that credential only for the selected API.'}
                         />
                     </MuiAlert>
+                    {eligibleApis.length === 0 && !eligibleApisLoading && (
+                        <MuiAlert severity='warning' sx={{ mb: 2 }}>
+                            <FormattedMessage
+                                id='Applications.Details.SubscriptionKeys.generate.no.apis'
+                                defaultMessage='No federated APIs are available for credential generation.'
+                            />
+                        </MuiAlert>
+                    )}
                     <Box className={classes.cardContent}>
                         <TableContainer>
                             <Table className={classes.credTable}>
@@ -369,6 +600,183 @@ const SubscriptionKeys = ({ application }) => {
                         </TableContainer>
                     </Box>
                 </Box>
+                <Dialog
+                    open={createDialogOpen}
+                    onClose={handleCloseCreateDialog}
+                    maxWidth='sm'
+                    fullWidth
+                >
+                    <DialogTitle>
+                        <FormattedMessage
+                            id='Applications.Details.SubscriptionKeys.dialog.title'
+                            defaultMessage='Generate API Credential'
+                        />
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        <Box sx={{
+                            display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
+                        }}
+                        >
+                            <TextField
+                                select
+                                label={(
+                                    <FormattedMessage
+                                        id='Applications.Details.SubscriptionKeys.dialog.api'
+                                        defaultMessage='API'
+                                    />
+                                )}
+                                value={selectedApiId}
+                                onChange={(e) => setSelectedApiId(e.target.value)}
+                                size='small'
+                                disabled={eligibleApisLoading || eligibleApis.length === 0}
+                            >
+                                {eligibleApis.map((apiItem) => {
+                                    const label = `${apiItem.displayName || apiItem.apiName || '-'}`
+                                        + `${apiItem.apiVersion ? ` - ${apiItem.apiVersion}` : ''}`;
+                                    return (
+                                        <MenuItem key={apiItem.id} value={apiItem.id}>{label}</MenuItem>
+                                    );
+                                })}
+                            </TextField>
+                            <TextField
+                                label={(
+                                    <FormattedMessage
+                                        id='Applications.Details.SubscriptionKeys.dialog.name'
+                                        defaultMessage='Credential Name'
+                                    />
+                                )}
+                                value={credentialName}
+                                onChange={(e) => setCredentialName(e.target.value)}
+                                size='small'
+                                required
+                                inputProps={{ maxLength: 255 }}
+                            />
+                            {selectedApiMissingActiveSubscription && (
+                                <MuiAlert severity='error'>
+                                    <FormattedMessage
+                                        id='Applications.Details.SubscriptionKeys.dialog.banner.subscription.required'
+                                        defaultMessage='You need an active subscription to generate credentials for this API.'
+                                    />
+                                    {' '}
+                                    <Link to={`/applications/${application.applicationId}/subscriptions`}>
+                                        <FormattedMessage
+                                            id='Applications.Details.SubscriptionKeys.dialog.banner.subscription.link'
+                                            defaultMessage='Go to Subscriptions'
+                                        />
+                                    </Link>
+                                </MuiAlert>
+                            )}
+                            {supportNotConfigured && (
+                                <MuiAlert severity='warning'>
+                                    <FormattedMessage
+                                        id='Applications.Details.SubscriptionKeys.dialog.banner.support.missing'
+                                        defaultMessage='This API does not support credential generation. Please contact your administrator.'
+                                    />
+                                </MuiAlert>
+                            )}
+                            {optionsLoading && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <CircularProgress size={16} />
+                                    <Typography variant='body2' color='text.secondary'>
+                                        <FormattedMessage
+                                            id='Applications.Details.SubscriptionKeys.dialog.options.loading'
+                                            defaultMessage='Loading API options...'
+                                        />
+                                    </Typography>
+                                </Box>
+                            )}
+                            {!optionsLoading && hasOptions && optionsRenderer({
+                                body: subscriptionOptions.body,
+                                value: selectedOption,
+                                selectedOption,
+                                onSelect: (value) => setSelectedOption(value),
+                                onChange: (value) => setSelectedOption(value),
+                                mode: 'select',
+                            })}
+                            {!optionsLoading && requiresSelection && (
+                                <Typography variant='caption' color='error'>
+                                    <FormattedMessage
+                                        id='Applications.Details.SubscriptionKeys.dialog.options.required'
+                                        defaultMessage='Select a subscription option to continue.'
+                                    />
+                                </Typography>
+                            )}
+                        </Box>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseCreateDialog} disabled={creatingCredential}>
+                            <FormattedMessage
+                                id='Applications.Details.SubscriptionKeys.dialog.cancel'
+                                defaultMessage='Cancel'
+                            />
+                        </Button>
+                        <Button
+                            variant='contained'
+                            color='primary'
+                            onClick={handleCreateCredential}
+                            disabled={creatingCredential
+                                || !selectedApiId
+                                || !credentialName.trim()
+                                || optionsLoading
+                                || requiresSelection
+                                || selectedApiMissingActiveSubscription
+                                || supportNotConfigured}
+                        >
+                            {creatingCredential ? <CircularProgress size={20} /> : (
+                                <FormattedMessage
+                                    id='Applications.Details.SubscriptionKeys.dialog.generate'
+                                    defaultMessage='Generate Credential'
+                                />
+                            )}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={resultDialogOpen}
+                    onClose={() => setResultDialogOpen(false)}
+                    maxWidth='sm'
+                    fullWidth
+                >
+                    <DialogTitle>
+                        <FormattedMessage
+                            id='Applications.Details.SubscriptionKeys.result.title'
+                            defaultMessage='Credential Generated'
+                        />
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        {isWriteOnce && (
+                            <MuiAlert severity='warning' sx={{ mb: 2 }}>
+                                <FormattedMessage
+                                    id='Applications.Details.SubscriptionKeys.result.writeonce.warning'
+                                    defaultMessage='This credential cannot be retrieved again. Copy it now and store it securely.'
+                                />
+                            </MuiAlert>
+                        )}
+                        {resultCredential && ResultCredentialRenderer && (
+                            <ResultCredentialRenderer
+                                body={resultCredential.body}
+                                masked={false}
+                            />
+                        )}
+                        {resultInvocation && ResultInvocationRenderer && (
+                            <>
+                                <Divider sx={{ my: 2 }} />
+                                <ResultInvocationRenderer body={resultInvocation.body} />
+                            </>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button
+                            variant='contained'
+                            onClick={() => setResultDialogOpen(false)}
+                        >
+                            <FormattedMessage
+                                id='Applications.Details.SubscriptionKeys.result.close'
+                                defaultMessage='Done'
+                            />
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Box>
         </Root>
     );

@@ -382,14 +382,24 @@ class DetailsLegacy extends React.Component {
                             .then((response) => {
                                 this.setState({
                                     subscriptionStatus: response.body.subscriptionStatus,
+                                    subscriptionSupportConfigured: true,
                                 });
                             })
                             .catch((error) => {
-                                console.error('Error fetching subscription support:', error);
-                                // On error, treat as OPEN (graceful fallback)
-                                this.setState({
-                                    subscriptionStatus: 'OPEN',
-                                });
+                                if (error.status === 404) {
+                                    // Publisher has not saved federation config yet.
+                                    // API console falls back to JWT; subscriptions/credentials pages show error.
+                                    this.setState({
+                                        subscriptionStatus: 'OPEN',
+                                        subscriptionSupportConfigured: false,
+                                    });
+                                } else {
+                                    console.error('Error fetching subscription support:', error);
+                                    this.setState({
+                                        subscriptionStatus: 'OPEN',
+                                        subscriptionSupportConfigured: null,
+                                    });
+                                }
                             });
                     } else {
                         // WSO2 gateway - subscriptions work as usual
@@ -484,6 +494,7 @@ class DetailsLegacy extends React.Component {
             tryOutExpanded: true,
             apiChatEnabled: false,
             subscriptionStatus: null, // null = loading, 'OPEN' | 'SECURED'
+            subscriptionSupportConfigured: null, // null = unknown/loading, true = configured, false = 404 not configured
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -588,7 +599,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionSupportConfigured,
         } = this.state;
         const {
             custom: {
@@ -616,6 +627,7 @@ class DetailsLegacy extends React.Component {
         const isAsyncApi = this.isAsyncAPI(api);
         const isSubValidationDisabled = api && api.tiers && api.tiers.length === 1
             && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+        const showFederatedCredentialPages = !isFederated || subscriptionSupportConfigured !== false;
 
         return api ? (
             <Root>
@@ -681,9 +693,10 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && !isSubValidationDisabled && (
+                            {user && showCredentials && (!isSubValidationDisabled || isFederated)
+                                && showFederatedCredentialPages && (
                                 <>
-                                    {isFederated && (
+                                    {isFederated && !isSubValidationDisabled && (
                                         <LeftMenuItem
                                             text={(
                                                 <FormattedMessage

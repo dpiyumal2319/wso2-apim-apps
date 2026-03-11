@@ -37,6 +37,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Divider from '@mui/material/Divider';
 import MuiAlert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
+import { Link } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
 import CONSTANTS from 'AppData/Constants';
@@ -143,6 +144,7 @@ export default function FederatedApiCredentials() {
     const [resultData, setResultData] = useState(null);
     const [deletingCredential, setDeletingCredential] = useState(null);
     const [expandedRow, setExpandedRow] = useState(null);
+    const [supportNotConfigured, setSupportNotConfigured] = useState(false);
 
     const restApi = new Api();
     const OptionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
@@ -162,6 +164,7 @@ export default function FederatedApiCredentials() {
 
     const fetchSubscriptionOptions = () => {
         setOptionsLoading(true);
+        setSupportNotConfigured(false);
         restApi.getApiSubscriptionSupport(api.id)
             .then((response) => {
                 const { body } = response;
@@ -172,6 +175,12 @@ export default function FederatedApiCredentials() {
             })
             .catch((error) => {
                 console.error('Failed to fetch subscription options', error);
+                setInvocationInstruction(null);
+                setSubscriptionOptions(null);
+                if (error.status === 404) {
+                    setSupportNotConfigured(true);
+                    Alert.error('Credentials are not available for this API. Please contact your administrator.');
+                }
             })
             .finally(() => setOptionsLoading(false));
     };
@@ -183,29 +192,30 @@ export default function FederatedApiCredentials() {
         }
     }, [api?.id]);
 
-    // Build the app list for the credential wizard based on subscription support state
-    const wizardApps = (() => {
-        if (subscriptionsEnabled) {
-            // Only show apps with ACTIVE (UNBLOCKED) subscriptions
-            return (subscribedApplications || []).filter(
-                (app) => app.status === 'UNBLOCKED',
-            );
-        }
-        // Non-subscription mode: show all user apps (union of available + subscribed)
+    // Show all applications and validate compatibility at generate time.
+    const allApplications = (() => {
         const available = applicationsAvailable || [];
         const subscribed = (subscribedApplications || []).map((app) => ({
             value: app.value,
             label: app.label,
+            status: app.status || null,
         }));
         const seen = new Set(subscribed.map((a) => a.value));
-        return [...subscribed, ...available.filter((a) => !seen.has(a.value))];
+        const notSubscribed = available
+            .filter((a) => !seen.has(a.value))
+            .map((a) => ({ ...a, status: null }));
+        return [...subscribed, ...notSubscribed];
     })();
+    const selectedAppMeta = allApplications.find((app) => app.value === selectedAppId);
+    const selectedAppIncompatible = subscriptionsEnabled
+        && !!selectedAppId
+        && selectedAppMeta?.status !== 'UNBLOCKED';
 
     useEffect(() => {
-        if (wizardApps.length > 0 && !selectedAppId) {
-            setSelectedAppId(wizardApps[0].value);
+        if (allApplications.length > 0 && !selectedAppId) {
+            setSelectedAppId(allApplications[0].value);
         }
-    }, [wizardApps.length, selectedAppId]);
+    }, [allApplications.length, selectedAppId]);
 
     const openResultDialog = (data) => {
         setResultData(data);
@@ -213,12 +223,20 @@ export default function FederatedApiCredentials() {
     };
 
     const handleGenerate = () => {
+        if (supportNotConfigured) {
+            Alert.error('Credentials are not available for this API. Please contact your administrator.');
+            return;
+        }
         if (!selectedAppId) {
             Alert.error('Please select an application');
             return;
         }
         if (!name.trim()) {
             Alert.error('Please provide a name for the credential');
+            return;
+        }
+        if (selectedAppIncompatible) {
+            Alert.error('You need to create a subscription for the selected application before generating credentials.');
             return;
         }
 
@@ -321,21 +339,10 @@ export default function FederatedApiCredentials() {
         subscriptionOptions?.body,
         selectedOption,
     );
-    const noAppsAvailable = wizardApps.length === 0;
-    const hasNonActiveSubscriptions = (subscribedApplications || []).some(
-        (app) => app.status && app.status !== 'UNBLOCKED',
-    );
+    const noAppsAvailable = allApplications.length === 0;
     let appDropdownHelperText = '';
     if (noAppsAvailable) {
-        if (subscriptionsEnabled) {
-            appDropdownHelperText = hasNonActiveSubscriptions
-                ? 'No active subscriptions. Your subscriptions may be pending approval or blocked.'
-                : 'No subscribed applications. Subscribe to this API first.';
-        } else {
-            appDropdownHelperText = 'No applications available. Create an application first.';
-        }
-    } else if (subscriptionsEnabled) {
-        appDropdownHelperText = 'Only applications with active subscriptions are shown here.';
+        appDropdownHelperText = 'No applications available. Create an application first.';
     }
     const resultCredential = resultData?.credential;
     const resultInvocation = resultData?.invocationInstruction;
@@ -356,15 +363,6 @@ export default function FederatedApiCredentials() {
                         />
                     </Typography>
                 </Box>
-                {subscriptionsEnabled && (
-                    <MuiAlert severity='info' sx={{ mb: 2 }}>
-                        <FormattedMessage
-                            id='FederatedApiCredentials.mode.subscription'
-                            defaultMessage={'When generating credentials, the application list includes only '
-                                + 'applications with an active subscription to this API.'}
-                        />
-                    </MuiAlert>
-                )}
                 {optionsLoading && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CircularProgress size={16} />
@@ -404,7 +402,7 @@ export default function FederatedApiCredentials() {
                             color='primary'
                             startIcon={<AddIcon />}
                             onClick={() => setWizardOpen(true)}
-                            disabled={noAppsAvailable}
+                            disabled={noAppsAvailable || supportNotConfigured}
                         >
                             <FormattedMessage
                                 id='FederatedApiCredentials.add.button'
@@ -413,13 +411,21 @@ export default function FederatedApiCredentials() {
                         </Button>
                     </Box>
                 </Box>
+                {supportNotConfigured && (
+                    <MuiAlert severity='error' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiCredentials.config.missing'
+                            defaultMessage='Credentials are not available for this API. Please contact your administrator.'
+                        />
+                    </MuiAlert>
+                )}
                 {noAppsAvailable && (
                     <MuiAlert severity='warning' sx={{ mb: 2 }}>
                         {subscriptionsEnabled ? (
                             <FormattedMessage
                                 id='FederatedApiCredentials.apps.empty.subscription'
-                                defaultMessage={'No application is currently available for key generation. '
-                                    + 'Subscribe an application to this API and wait until it becomes Active.'}
+                                defaultMessage={'No applications found. Create an application, '
+                                    + 'then subscribe it to this API.'}
                             />
                         ) : (
                             <FormattedMessage
@@ -561,24 +567,6 @@ export default function FederatedApiCredentials() {
                             display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
                         }}
                     >
-                        {subscriptionsEnabled && (
-                            <MuiAlert severity='info'>
-                                <FormattedMessage
-                                    id='FederatedApiCredentials.wizard.mode.subscription'
-                                    defaultMessage={'Only applications with an active subscription to this API are shown. '
-                                        + 'If an application is missing, check its subscription status.'}
-                                />
-                            </MuiAlert>
-                        )}
-                        {noAppsAvailable && hasNonActiveSubscriptions && (
-                            <MuiAlert severity='warning'>
-                                <FormattedMessage
-                                    id='FederatedApiCredentials.wizard.pending'
-                                    defaultMessage={'Subscriptions exist, but none are Active yet '
-                                        + '(for example Pending, On Hold, or Blocked).'}
-                                />
-                            </MuiAlert>
-                        )}
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <TextField
                                 select
@@ -595,7 +583,7 @@ export default function FederatedApiCredentials() {
                                 helperText={appDropdownHelperText}
                                 sx={{ flex: 1 }}
                             >
-                                {wizardApps.map((app) => (
+                                {allApplications.map((app) => (
                                     <MenuItem key={app.value} value={app.value}>
                                         {app.label}
                                     </MenuItem>
@@ -616,6 +604,22 @@ export default function FederatedApiCredentials() {
                                 sx={{ flex: 1 }}
                             />
                         </Box>
+                        {selectedAppIncompatible && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.wizard.subscription.required'
+                                    defaultMessage={'You need to create a subscription for the '
+                                        + 'selected application before generating credentials.'}
+                                />
+                                {' '}
+                                <Link to={`/apis/${api.id}/subscriptions`}>
+                                    <FormattedMessage
+                                        id='FederatedApiCredentials.wizard.subscription.link'
+                                        defaultMessage='Go to Subscriptions'
+                                    />
+                                </Link>
+                            </MuiAlert>
+                        )}
 
                         {optionsLoading && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -659,7 +663,12 @@ export default function FederatedApiCredentials() {
                         variant='contained'
                         color='primary'
                         onClick={handleGenerate}
-                        disabled={creating || noAppsAvailable || optionsLoading || requiresSelection || !name.trim()}
+                        disabled={creating
+                            || noAppsAvailable
+                            || optionsLoading
+                            || requiresSelection
+                            || !name.trim()
+                            || selectedAppIncompatible}
                     >
                         {creating ? <CircularProgress size={20} /> : (
                             <FormattedMessage
