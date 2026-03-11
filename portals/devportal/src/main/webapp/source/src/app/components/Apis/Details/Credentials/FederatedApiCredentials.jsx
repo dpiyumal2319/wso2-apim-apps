@@ -29,26 +29,25 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
-import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Divider from '@mui/material/Divider';
 import MuiAlert from '@mui/material/Alert';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import AddIcon from '@mui/icons-material/Add';
+import { Link } from 'react-router-dom';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
+import CONSTANTS from 'AppData/Constants';
 import Alert from 'AppComponents/Shared/Alert';
 import { ApiContext } from '../ApiContext';
 import FederatedCredentialPanel from './FederatedCredentialPanel';
 import {
     getSubscriptionOptionsRenderer,
     getSubscriptionOptionsColumnHeader,
+    isSubscriptionOptionSelectionComplete,
     getCredentialRenderer,
     getInvocationRenderer,
     SelectedOptionPreview,
@@ -117,23 +116,23 @@ const Root = styled('div')(({ theme }) => ({
 
 /**
  * FederatedApiCredentials page - unified credential management for federated APIs.
- * Top section: Invocation instructions
- * Bottom section: Credentials table with expandable rows + Generate Keys dialog
+ * Credentials page with credential lifecycle actions and generated credential display.
  */
 export default function FederatedApiCredentials() {
     const {
         api,
         applicationsAvailable,
+        subscribedApplications,
         updateSubscriptionData,
     } = useContext(ApiContext);
 
+    const isSubValidationDisabled = api && api.tiers && api.tiers.length === 1
+        && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+    const subscriptionsEnabled = !isSubValidationDisabled;
+
     const [summaries, setSummaries] = useState([]);
     const [summariesLoading, setSummariesLoading] = useState(true);
-
-    // Invocation instruction displayed at top of page (sourced from subscription-support)
     const [invocationInstruction, setInvocationInstruction] = useState(null);
-
-    // Wizard dialog state
     const [wizardOpen, setWizardOpen] = useState(false);
     const [selectedAppId, setSelectedAppId] = useState('');
     const [name, setName] = useState('');
@@ -141,18 +140,11 @@ export default function FederatedApiCredentials() {
     const [selectedOption, setSelectedOption] = useState(null);
     const [optionsLoading, setOptionsLoading] = useState(false);
     const [creating, setCreating] = useState(false);
-
-    // Result dialog state
     const [resultDialogOpen, setResultDialogOpen] = useState(false);
     const [resultData, setResultData] = useState(null);
-
-    // Table action state
-    const [unsubscribing, setUnsubscribing] = useState(null); // subscriptionId being unsubscribed
-    const [provisioning, setProvisioning] = useState(null); // subscriptionId being provisioned
-    const [provisionedData, setProvisionedData] = useState({}); // subscriptionId -> create response body
-
-    // Table expand state
+    const [deletingCredential, setDeletingCredential] = useState(null);
     const [expandedRow, setExpandedRow] = useState(null);
+    const [supportNotConfigured, setSupportNotConfigured] = useState(false);
 
     const restApi = new Api();
     const OptionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
@@ -172,29 +164,23 @@ export default function FederatedApiCredentials() {
 
     const fetchSubscriptionOptions = () => {
         setOptionsLoading(true);
+        setSupportNotConfigured(false);
         restApi.getApiSubscriptionSupport(api.id)
             .then((response) => {
                 const { body } = response;
                 if (body) {
-                    if (body.invocationTemplate) {
-                        setInvocationInstruction(body.invocationTemplate);
-                    }
-                    if (body.subscriptionOptions) {
-                        setSubscriptionOptions(body.subscriptionOptions);
-                        // Auto-select if only one option
-                        try {
-                            const parsed = JSON.parse(body.subscriptionOptions.body);
-                            if (parsed.plans && parsed.plans.length === 1) {
-                                setSelectedOption(JSON.stringify(parsed.plans[0]));
-                            }
-                        } catch {
-                            // ignore
-                        }
-                    }
+                    setInvocationInstruction(body.invocationTemplate || null);
+                    setSubscriptionOptions(body.subscriptionOptions || null);
                 }
             })
             .catch((error) => {
                 console.error('Failed to fetch subscription options', error);
+                setInvocationInstruction(null);
+                setSubscriptionOptions(null);
+                if (error.status === 404) {
+                    setSupportNotConfigured(true);
+                    Alert.error('Credentials are not available for this API. Please contact your administrator.');
+                }
             })
             .finally(() => setOptionsLoading(false));
     };
@@ -206,12 +192,30 @@ export default function FederatedApiCredentials() {
         }
     }, [api?.id]);
 
-    // Set default app when apps become available
+    // Show all applications and validate compatibility at generate time.
+    const allApplications = (() => {
+        const available = applicationsAvailable || [];
+        const subscribed = (subscribedApplications || []).map((app) => ({
+            value: app.value,
+            label: app.label,
+            status: app.status || null,
+        }));
+        const seen = new Set(subscribed.map((a) => a.value));
+        const notSubscribed = available
+            .filter((a) => !seen.has(a.value))
+            .map((a) => ({ ...a, status: null }));
+        return [...subscribed, ...notSubscribed];
+    })();
+    const selectedAppMeta = allApplications.find((app) => app.value === selectedAppId);
+    const selectedAppIncompatible = subscriptionsEnabled
+        && !!selectedAppId
+        && selectedAppMeta?.status !== 'UNBLOCKED';
+
     useEffect(() => {
-        if (applicationsAvailable && applicationsAvailable.length > 0 && !selectedAppId) {
-            setSelectedAppId(applicationsAvailable[0].value);
+        if (allApplications.length > 0 && !selectedAppId) {
+            setSelectedAppId(allApplications[0].value);
         }
-    }, [applicationsAvailable]);
+    }, [allApplications.length, selectedAppId]);
 
     const openResultDialog = (data) => {
         setResultData(data);
@@ -219,6 +223,10 @@ export default function FederatedApiCredentials() {
     };
 
     const handleGenerate = () => {
+        if (supportNotConfigured) {
+            Alert.error('Credentials are not available for this API. Please contact your administrator.');
+            return;
+        }
         if (!selectedAppId) {
             Alert.error('Please select an application');
             return;
@@ -227,8 +235,11 @@ export default function FederatedApiCredentials() {
             Alert.error('Please provide a name for the credential');
             return;
         }
+        if (selectedAppIncompatible) {
+            Alert.error('You need to create a subscription for the selected application before generating credentials.');
+            return;
+        }
 
-        // Build selectedOption wrapper: {schemaName, body}
         let wrappedSelectedOption = null;
         if (selectedOption && subscriptionOptions) {
             wrappedSelectedOption = JSON.stringify({
@@ -238,32 +249,23 @@ export default function FederatedApiCredentials() {
         }
 
         setCreating(true);
-        restApi.createFederatedCredentialForApi(
-            api.id,
-            selectedAppId,
-            name,
-            wrappedSelectedOption,
-        )
+        restApi.createFederatedCredentialForApi(api.id, selectedAppId, name, wrappedSelectedOption)
             .then((response) => {
                 const result = response.body;
                 setWizardOpen(false);
-                // Reset wizard fields
                 setName('');
                 setSelectedOption(null);
                 setSelectedAppId('');
                 fetchSummaries();
                 updateSubscriptionData();
-
-                if (result.status === 'ACTIVE') {
-                    setExpandedRow(result.subscriptionId);
-                    openResultDialog(result);
-                } else {
-                    Alert.info('Subscription requires approval. You will be able to generate keys after approval.');
+                if (result?.credentialId) {
+                    setExpandedRow(result.credentialId);
                 }
+                openResultDialog(result);
             })
             .catch((error) => {
                 if (error.status === 409) {
-                    Alert.error('A subscription already exists for this API and application');
+                    Alert.error('A credential already exists for this API and application context');
                 } else {
                     Alert.error('Failed to generate credential');
                 }
@@ -272,143 +274,81 @@ export default function FederatedApiCredentials() {
             .finally(() => setCreating(false));
     };
 
-    const handleLazyProvision = (subscriptionId) => {
-        setProvisioning(subscriptionId);
-        restApi.createFederatedSubscription(subscriptionId)
-            .then((response) => {
-                const result = response.body;
-                setProvisionedData((prev) => ({ ...prev, [subscriptionId]: result }));
-                fetchSummaries();
-                setExpandedRow(subscriptionId);
-                openResultDialog(result);
-            })
-            .catch((error) => {
-                Alert.error('Failed to generate credential');
-                console.error(error);
-            })
-            .finally(() => setProvisioning(null));
-    };
-
-    const handleUnsubscribe = (subscriptionId) => {
-        setUnsubscribing(subscriptionId);
-        restApi.deleteSubscription(subscriptionId)
+    const handleDeleteCredential = (credentialId) => {
+        setDeletingCredential(credentialId);
+        restApi.deleteApiFederatedCredential(api.id, credentialId)
             .then(() => {
-                Alert.info('Unsubscribed successfully');
+                Alert.info('Credential deleted successfully');
                 fetchSummaries();
-                updateSubscriptionData();
-                if (expandedRow === subscriptionId) {
+                if (expandedRow === credentialId) {
                     setExpandedRow(null);
                 }
             })
             .catch((error) => {
-                if (error.status === 200 || error.status === 201) {
-                    Alert.info('Unsubscribe request submitted. Pending approval.');
-                    fetchSummaries();
-                    updateSubscriptionData();
-                } else {
-                    Alert.error('Failed to unsubscribe');
-                    console.error(error);
-                }
+                Alert.error('Failed to delete credential');
+                console.error(error);
             })
-            .finally(() => setUnsubscribing(null));
-    };
-
-    const getStatusChip = (summary) => {
-        const { subscriptionStatus, isProvisioned } = summary;
-
-        switch (subscriptionStatus) {
-            case 'DELETE_PENDING':
-                return <Chip label='Deletion Pending' size='small' color='warning' />;
-            case 'ON_HOLD':
-                return <Chip label='Pending Approval' size='small' color='info' />;
-            case 'REJECTED':
-                return <Chip label='Rejected' size='small' color='error' />;
-            case 'BLOCKED':
-                return <Chip label='Blocked' size='small' color='error' />;
-            case 'PROD_ONLY_BLOCKED':
-                return <Chip label='Production Blocked' size='small' color='warning' />;
-            case 'TIER_UPDATE_PENDING':
-                return <Chip label='Tier Update Pending' size='small' color='info' />;
-            case 'UNBLOCKED':
-                return isProvisioned
-                    ? <Chip label='Active' size='small' color='success' />
-                    : <Chip label='Approved' size='small' color='primary' variant='outlined' />;
-            default:
-                return <Chip label={subscriptionStatus} size='small' />;
-        }
+            .finally(() => setDeletingCredential(null));
     };
 
     const getActionButton = (summary) => {
-        const { subscriptionStatus, isProvisioned } = summary;
-        const isUnsubscribing = unsubscribing === summary.subscriptionId;
-        const isProvisioning = provisioning === summary.subscriptionId;
-        const canGenerateKeys = subscriptionStatus === 'UNBLOCKED' && !isProvisioned;
-        const canUnsubscribe = subscriptionStatus !== 'DELETE_PENDING';
+        const isDeleting = deletingCredential === summary.credentialId;
+        const expanded = expandedRow === summary.credentialId;
 
         return (
             <Box sx={{
                 display: 'flex', gap: 1, alignItems: 'center',
             }}
             >
-                {canGenerateKeys && (
-                    <Button
-                        variant='contained'
-                        size='small'
-                        color='primary'
-                        onClick={() => handleLazyProvision(summary.subscriptionId)}
-                        disabled={isProvisioning || isUnsubscribing}
-                        sx={{ whiteSpace: 'nowrap' }}
-                    >
-                        {isProvisioning
-                            ? <CircularProgress size={16} />
-                            : (
-                                <FormattedMessage
-                                    id='FederatedApiCredentials.generate.keys'
-                                    defaultMessage='Generate Keys'
-                                />
-                            )}
-                    </Button>
-                )}
-                {canUnsubscribe && (
-                    <Button
-                        variant='outlined'
-                        size='small'
-                        color='error'
-                        onClick={() => handleUnsubscribe(summary.subscriptionId)}
-                        disabled={isUnsubscribing}
-                    >
-                        {isUnsubscribing
-                            ? <CircularProgress size={16} />
-                            : (
-                                <FormattedMessage
-                                    id='FederatedApiCredentials.unsubscribe'
-                                    defaultMessage='Unsubscribe'
-                                />
-                            )}
-                    </Button>
-                )}
+                <Button
+                    variant='outlined'
+                    size='small'
+                    onClick={() => setExpandedRow(expanded ? null : summary.credentialId)}
+                    disabled={!summary.credentialId}
+                    sx={{ whiteSpace: 'nowrap' }}
+                >
+                    <FormattedMessage
+                        id='FederatedApiCredentials.view.keys'
+                        defaultMessage='View'
+                    />
+                </Button>
+                <Button
+                    variant='outlined'
+                    size='small'
+                    color='error'
+                    onClick={() => handleDeleteCredential(summary.credentialId)}
+                    disabled={isDeleting || !summary.credentialId}
+                    sx={{ whiteSpace: 'nowrap' }}
+                >
+                    {isDeleting
+                        ? <CircularProgress size={16} />
+                        : (
+                            <FormattedMessage
+                                id='FederatedApiCredentials.delete'
+                                defaultMessage='Delete'
+                            />
+                        )}
+                </Button>
             </Box>
         );
     };
 
-    const isExpandable = (summary) => {
-        const { subscriptionStatus, isProvisioned } = summary;
-        if (!isProvisioned) return false;
-        return ['UNBLOCKED', 'BLOCKED', 'PROD_ONLY_BLOCKED', 'TIER_UPDATE_PENDING'].includes(subscriptionStatus);
-    };
-
-    const hasOptions = subscriptionOptions && subscriptionOptions.body;
-    const requiresSelection = hasOptions && !selectedOption;
-    const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
-
-    // Result dialog credential rendering
+    const hasOptions = !subscriptionsEnabled && subscriptionOptions && subscriptionOptions.body;
+    const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
+        subscriptionOptions?.schemaName,
+        subscriptionOptions?.body,
+        selectedOption,
+    );
+    const noAppsAvailable = allApplications.length === 0;
+    let appDropdownHelperText = '';
+    if (noAppsAvailable) {
+        appDropdownHelperText = 'No applications available. Create an application first.';
+    }
     const resultCredential = resultData?.credential;
     const resultInvocation = resultData?.invocationInstruction;
     const ResultCredentialRenderer = getCredentialRenderer(resultCredential?.schemaName);
     const ResultInvocationRenderer = getInvocationRenderer(resultInvocation?.schemaName);
     const isWriteOnce = resultCredential && resultCredential.isValueRetrievable === false;
-
-    // Top invocation instruction rendering
     const TopInvocationRenderer = getInvocationRenderer(invocationInstruction?.schemaName);
 
     return (
@@ -441,7 +381,7 @@ export default function FederatedApiCredentials() {
                     <Typography variant='body2' color='text.secondary'>
                         <FormattedMessage
                             id='FederatedApiCredentials.invocation.placeholder'
-                            defaultMessage='Generate your first credential to see how to invoke this API.'
+                            defaultMessage='No invocation guide available for this API.'
                         />
                     </Typography>
                 )}
@@ -462,7 +402,7 @@ export default function FederatedApiCredentials() {
                             color='primary'
                             startIcon={<AddIcon />}
                             onClick={() => setWizardOpen(true)}
-                            disabled={noAppsAvailable}
+                            disabled={noAppsAvailable || supportNotConfigured}
                         >
                             <FormattedMessage
                                 id='FederatedApiCredentials.add.button'
@@ -471,6 +411,30 @@ export default function FederatedApiCredentials() {
                         </Button>
                     </Box>
                 </Box>
+                {supportNotConfigured && (
+                    <MuiAlert severity='error' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiCredentials.config.missing'
+                            defaultMessage='Credentials are not available for this API. Please contact your administrator.'
+                        />
+                    </MuiAlert>
+                )}
+                {noAppsAvailable && (
+                    <MuiAlert severity='warning' sx={{ mb: 2 }}>
+                        {subscriptionsEnabled ? (
+                            <FormattedMessage
+                                id='FederatedApiCredentials.apps.empty.subscription'
+                                defaultMessage={'No applications found. Create an application, '
+                                    + 'then subscribe it to this API.'}
+                            />
+                        ) : (
+                            <FormattedMessage
+                                id='FederatedApiCredentials.apps.empty.direct'
+                                defaultMessage='No applications found. Create an application to generate credentials.'
+                            />
+                        )}
+                    </MuiAlert>
+                )}
 
                 {summariesLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -482,7 +446,6 @@ export default function FederatedApiCredentials() {
                             <Table className={classes.credTable}>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell padding='checkbox' />
                                         <TableCell>
                                             <FormattedMessage
                                                 id='FederatedApiCredentials.col.name'
@@ -509,12 +472,6 @@ export default function FederatedApiCredentials() {
                                         </TableCell>
                                         <TableCell>
                                             <FormattedMessage
-                                                id='FederatedApiCredentials.col.status'
-                                                defaultMessage='Status'
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <FormattedMessage
                                                 id='FederatedApiCredentials.col.actions'
                                                 defaultMessage='Actions'
                                             />
@@ -524,41 +481,31 @@ export default function FederatedApiCredentials() {
                                 <TableBody>
                                     {summaries.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} align='center'>
+                                            <TableCell colSpan={5} align='center'>
                                                 <Typography variant='body2' color='text.secondary' sx={{ py: 3 }}>
-                                                    <FormattedMessage
-                                                        id='FederatedApiCredentials.empty'
-                                                        defaultMessage={'No credentials yet. Click Generate Keys'
-                                                            + ' to create your first credential.'}
-                                                    />
+                                                    {subscriptionsEnabled ? (
+                                                        <FormattedMessage
+                                                            id='FederatedApiCredentials.empty.with.subscription'
+                                                            defaultMessage={'No credentials found. '
+                                                                + 'Subscribe an application, then generate credentials.'}
+                                                        />
+                                                    ) : (
+                                                        <FormattedMessage
+                                                            id='FederatedApiCredentials.empty.without.subscription'
+                                                            defaultMessage='No credentials found. Click Generate Keys to create one.'
+                                                        />
+                                                    )}
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
-                                    ) : summaries.map((summary) => {
-                                        const expanded = expandedRow === summary.subscriptionId;
-                                        const canExpand = isExpandable(summary);
+                                    ) : summaries.map((summary, index) => {
+                                        const rowKey = summary.credentialId || summary.subscriptionId || `${summary.name}-${index}`;
+                                        const expanded = expandedRow === summary.credentialId;
                                         return (
-                                            <React.Fragment key={summary.subscriptionId}>
-                                                <TableRow
-                                                    hover={canExpand}
-                                                    sx={canExpand ? { cursor: 'pointer' } : {}}
-                                                    onClick={() => {
-                                                        if (canExpand) {
-                                                            setExpandedRow(expanded ? null : summary.subscriptionId);
-                                                        }
-                                                    }}
-                                                >
-                                                    <TableCell padding='checkbox'>
-                                                        {canExpand && (
-                                                            <IconButton size='small'>
-                                                                {expanded
-                                                                    ? <KeyboardArrowUpIcon />
-                                                                    : <KeyboardArrowDownIcon />}
-                                                            </IconButton>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>{summary.name}</TableCell>
-                                                    <TableCell>{summary.applicationName}</TableCell>
+                                            <React.Fragment key={rowKey}>
+                                                <TableRow>
+                                                    <TableCell>{summary.name || '-'}</TableCell>
+                                                    <TableCell>{summary.applicationName || '-'}</TableCell>
                                                     <TableCell>
                                                         <SelectedOptionPreview
                                                             selectedOption={summary.selectedOption}
@@ -570,27 +517,23 @@ export default function FederatedApiCredentials() {
                                                             : '-'}
                                                     </TableCell>
                                                     <TableCell>
-                                                        {getStatusChip(summary)}
-                                                    </TableCell>
-                                                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
-                                                    <TableCell onClick={(e) => e.stopPropagation()}>
                                                         {getActionButton(summary)}
                                                     </TableCell>
                                                 </TableRow>
-                                                {canExpand && (
+                                                {expanded && summary.credentialId && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={7}
+                                                            colSpan={5}
                                                             sx={{
                                                                 py: 0,
-                                                                borderLeft: expanded ? '3px solid' : 'none',
+                                                                borderLeft: '3px solid',
                                                                 borderColor: 'primary.main',
                                                             }}
                                                         >
-                                                            <Collapse in={expanded} timeout='auto' unmountOnExit>
+                                                            <Collapse in timeout='auto' unmountOnExit>
                                                                 <FederatedCredentialPanel
-                                                                    subscriptionId={summary.subscriptionId}
-                                                                    initialData={provisionedData[summary.subscriptionId]}
+                                                                    apiId={api.id}
+                                                                    credentialId={summary.credentialId}
                                                                 />
                                                             </Collapse>
                                                         </TableCell>
@@ -606,7 +549,6 @@ export default function FederatedApiCredentials() {
                 )}
             </Box>
 
-            {/* Generate Keys Wizard Dialog */}
             <Dialog
                 open={wizardOpen}
                 onClose={() => !creating && setWizardOpen(false)}
@@ -620,11 +562,11 @@ export default function FederatedApiCredentials() {
                     />
                 </DialogTitle>
                 <DialogContent dividers>
-                    <Box sx={{
-                        display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
-                    }}
+                    <Box
+                        sx={{
+                            display: 'flex', flexDirection: 'column', gap: 2, pt: 1,
+                        }}
                     >
-                        {/* Application and Display Name - side by side */}
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <TextField
                                 select
@@ -638,18 +580,15 @@ export default function FederatedApiCredentials() {
                                 onChange={(e) => setSelectedAppId(e.target.value)}
                                 size='small'
                                 disabled={noAppsAvailable}
-                                helperText={noAppsAvailable
-                                    ? 'No applications available. Create an application or all are already subscribed.'
-                                    : ''}
+                                helperText={appDropdownHelperText}
                                 sx={{ flex: 1 }}
                             >
-                                {applicationsAvailable && applicationsAvailable.map((app) => (
+                                {allApplications.map((app) => (
                                     <MenuItem key={app.value} value={app.value}>
                                         {app.label}
                                     </MenuItem>
                                 ))}
                             </TextField>
-
                             <TextField
                                 label={(
                                     <FormattedMessage
@@ -665,8 +604,23 @@ export default function FederatedApiCredentials() {
                                 sx={{ flex: 1 }}
                             />
                         </Box>
+                        {selectedAppIncompatible && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.wizard.subscription.required'
+                                    defaultMessage={'You need to create a subscription for the '
+                                        + 'selected application before generating credentials.'}
+                                />
+                                {' '}
+                                <Link to={`/apis/${api.id}/subscriptions`}>
+                                    <FormattedMessage
+                                        id='FederatedApiCredentials.wizard.subscription.link'
+                                        defaultMessage='Go to Subscriptions'
+                                    />
+                                </Link>
+                            </MuiAlert>
+                        )}
 
-                        {/* Subscription options */}
                         {optionsLoading && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <CircularProgress size={16} />
@@ -685,6 +639,14 @@ export default function FederatedApiCredentials() {
                                 onSelect={setSelectedOption}
                             />
                         )}
+                        {hasOptions && requiresSelection && (
+                            <MuiAlert severity='warning'>
+                                <FormattedMessage
+                                    id='FederatedApiCredentials.option.required'
+                                    defaultMessage='Select an option to continue.'
+                                />
+                            </MuiAlert>
+                        )}
                     </Box>
                 </DialogContent>
                 <DialogActions>
@@ -701,7 +663,12 @@ export default function FederatedApiCredentials() {
                         variant='contained'
                         color='primary'
                         onClick={handleGenerate}
-                        disabled={creating || noAppsAvailable || optionsLoading || requiresSelection || !name.trim()}
+                        disabled={creating
+                            || noAppsAvailable
+                            || optionsLoading
+                            || requiresSelection
+                            || !name.trim()
+                            || selectedAppIncompatible}
                     >
                         {creating ? <CircularProgress size={20} /> : (
                             <FormattedMessage
@@ -713,7 +680,6 @@ export default function FederatedApiCredentials() {
                 </DialogActions>
             </Dialog>
 
-            {/* Credential Result Dialog */}
             <Dialog
                 open={resultDialogOpen}
                 onClose={() => setResultDialogOpen(false)}

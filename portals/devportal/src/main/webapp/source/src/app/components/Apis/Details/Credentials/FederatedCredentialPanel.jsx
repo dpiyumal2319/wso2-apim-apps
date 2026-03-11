@@ -18,14 +18,12 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import { FormattedMessage } from 'react-intl';
 import Api from 'AppData/api';
 import Alert from 'AppComponents/Shared/Alert';
-import DeleteIcon from '@mui/icons-material/Delete';
 import {
     getCredentialRenderer,
     getInvocationRenderer,
@@ -40,28 +38,32 @@ const classes = {
 
 const FederatedCredentialPanel = (props) => {
     const {
-        subscriptionId,
+        apiId,
+        credentialId,
         initialData,
     } = props;
     const [loading, setLoading] = useState(!initialData);
-    const [fedSubInfo, setFedSubInfo] = useState(initialData || null);
-    const [actionLoading, setActionLoading] = useState(false);
-    // Separate retrieving state so eye-icon spinner doesn't affect regenerate/delete buttons
+    const [fedCredentialInfo, setFedCredentialInfo] = useState(initialData || null);
     const [retrieving, setRetrieving] = useState(false);
 
     const api = new Api();
 
     const fetchCredential = () => {
+        if (!apiId || !credentialId) {
+            setFedCredentialInfo(null);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        api.getFederatedSubscription(subscriptionId)
+        api.getApiFederatedCredential(apiId, credentialId)
             .then((response) => {
-                setFedSubInfo(response.body);
+                setFedCredentialInfo(response.body);
             })
             .catch((error) => {
                 if (error.status === 404) {
-                    setFedSubInfo(null);
+                    setFedCredentialInfo(null);
                 } else {
-                    Alert.error('Failed to fetch federated subscription information');
+                    Alert.error('Failed to fetch federated credential information');
                     console.error(error);
                 }
             })
@@ -72,28 +74,13 @@ const FederatedCredentialPanel = (props) => {
         if (!initialData) {
             fetchCredential();
         }
-    }, [subscriptionId]);
-
-    const handleCreate = () => {
-        setActionLoading(true);
-        // selectedOption is resolved from the stored subscription record on the server side
-        api.createFederatedSubscription(subscriptionId)
-            .then((response) => {
-                setFedSubInfo(response.body);
-                Alert.info('Credential created successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to create federated credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
+    }, [apiId, credentialId]);
 
     const handleRetrieve = () => {
         setRetrieving(true);
-        api.retrieveFederatedCredential(subscriptionId)
+        api.retrieveApiFederatedCredential(apiId, credentialId)
             .then((response) => {
-                setFedSubInfo((prev) => ({
+                setFedCredentialInfo((prev) => ({
                     ...prev,
                     credential: response.body.credential,
                 }));
@@ -105,34 +92,6 @@ const FederatedCredentialPanel = (props) => {
             .finally(() => setRetrieving(false));
     };
 
-    const handleRegenerate = () => {
-        setActionLoading(true);
-        api.regenerateFederatedCredential(subscriptionId)
-            .then((response) => {
-                setFedSubInfo(response.body);
-                Alert.info('Credential regenerated successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to regenerate credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
-
-    const handleDelete = () => {
-        setActionLoading(true);
-        api.deleteFederatedSubscription(subscriptionId)
-            .then(() => {
-                setFedSubInfo(null);
-                Alert.info('Credential deleted successfully');
-            })
-            .catch((error) => {
-                Alert.error('Failed to delete federated credential');
-                console.error(error);
-            })
-            .finally(() => setActionLoading(false));
-    };
-
     if (loading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -141,33 +100,20 @@ const FederatedCredentialPanel = (props) => {
         );
     }
 
-    if (!fedSubInfo) {
+    if (!fedCredentialInfo) {
         return (
             <Box sx={{ p: 2 }}>
-                <Typography variant='body2' sx={{ mb: 2 }}>
+                <Typography variant='body2'>
                     <FormattedMessage
-                        id='Apis.Details.Credentials.FederatedCredentialPanel.no.credential'
-                        defaultMessage='No credential has been generated for this subscription yet.'
+                        id='Apis.Details.Credentials.FederatedCredentialPanel.credential.not.found'
+                        defaultMessage='Credential details are not available.'
                     />
                 </Typography>
-                <Button
-                    variant='contained'
-                    color='primary'
-                    onClick={handleCreate}
-                    disabled={actionLoading}
-                >
-                    {actionLoading ? <CircularProgress size={20} /> : (
-                        <FormattedMessage
-                            id='Apis.Details.Credentials.FederatedCredentialPanel.generate'
-                            defaultMessage='Generate Credentials'
-                        />
-                    )}
-                </Button>
             </Box>
         );
     }
 
-    const { credential, invocationInstruction } = fedSubInfo;
+    const { credential, invocationInstruction } = fedCredentialInfo;
 
     // Read schema names directly from DTO envelopes (no body parsing)
     const extractedCredentialSchema = credential?.schemaName;
@@ -175,40 +121,6 @@ const FederatedCredentialPanel = (props) => {
 
     const CredentialRenderer = getCredentialRenderer(extractedCredentialSchema);
     const InvocationRenderer = getInvocationRenderer(extractedInvocationSchema);
-
-    const actionButtons = {
-        regenerate: (
-            <Button
-                variant='outlined'
-                size='small'
-                onClick={handleRegenerate}
-                disabled={actionLoading || retrieving}
-            >
-                {actionLoading ? <CircularProgress size={16} /> : (
-                    <FormattedMessage
-                        id='Apis.Details.Credentials.FederatedCredentialPanel.regenerate'
-                        defaultMessage='Regenerate Credential'
-                    />
-                )}
-            </Button>
-        ),
-        delete: (
-            <Button
-                variant='outlined'
-                color='error'
-                startIcon={<DeleteIcon />}
-                onClick={handleDelete}
-                disabled={actionLoading || retrieving}
-            >
-                {actionLoading ? <CircularProgress size={16} /> : (
-                    <FormattedMessage
-                        id='Apis.Details.Credentials.FederatedCredentialPanel.delete'
-                        defaultMessage='Revoke Credential'
-                    />
-                )}
-            </Button>
-        ),
-    };
 
     return (
         <Box sx={{ p: 2 }}>
@@ -220,20 +132,10 @@ const FederatedCredentialPanel = (props) => {
                     />
                 </Typography>
             </Box>
-            <Box mb={1}>
-                <Typography className={classes.subTitle} variant='h6' component='h6'>
-                    <FormattedMessage
-                        id='Apis.Details.Credentials.FederatedCredentialPanel.key.and.secret.title'
-                        defaultMessage='Key and Secret'
-                    />
-                </Typography>
-            </Box>
             {credential && (
                 <CredentialRenderer
                     body={credential.body}
                     masked={credential.masked}
-                    actionButtons={actionButtons}
-                    actionLoading={actionLoading}
                     onRetrieve={credential.isValueRetrievable ? handleRetrieve : undefined}
                     retrieving={retrieving}
                 />
@@ -250,7 +152,8 @@ const FederatedCredentialPanel = (props) => {
 };
 
 FederatedCredentialPanel.propTypes = {
-    subscriptionId: PropTypes.string.isRequired,
+    apiId: PropTypes.string.isRequired,
+    credentialId: PropTypes.string.isRequired,
     initialData: PropTypes.shape({}),
 };
 

@@ -27,7 +27,6 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PolicyIcon from '@mui/icons-material/Policy';
 import CodeIcon from '@mui/icons-material/Code';
 import PersonPinCircleOutlinedIcon from '@mui/icons-material/PersonPinCircleOutlined';
-import LinkIcon from '@mui/icons-material/Link';
 import ResourcesIcon from '@mui/icons-material/VerticalSplit';
 import { injectIntl, defineMessages, FormattedMessage } from 'react-intl';
 import {
@@ -1088,21 +1087,6 @@ class Details extends Component {
                                     />
                                 </>
                             )}
-                            {!isAPIProduct && api.gatewayType
-                                && api.gatewayType !== 'wso2/synapse' && (
-                                <>
-                                    <Divider />
-                                    <LeftMenuItem
-                                        text={intl.formatMessage({
-                                            id: 'Apis.Details.index.federation-config',
-                                            defaultMessage: 'Federation',
-                                        })}
-                                        to={pathPrefix + 'federation-config'}
-                                        Icon={<LinkIcon />}
-                                        id='left-menu-federation-config'
-                                    />
-                                </>
-                            )}
                             <Divider />
                         </nav>
                     </Box>
@@ -1304,12 +1288,35 @@ class Details extends Component {
                                         render={(props) => <Documents {...props} api={api} />}
                                     />
                                     {settings && settings.gatewayFeatureCatalog
-                                        .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
-                                        .subscriptions.includes("subscriptions") &&
+                                        .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse'] &&
+                                        (
+                                            settings.gatewayFeatureCatalog
+                                                .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
+                                                .subscriptions.includes('subscriptions')
+                                            || (
+                                                !isAPIProduct
+                                                && !!settings.gatewayFeatureCatalog
+                                                    .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
+                                                    .federatedSubscription
+                                            )
+                                        ) &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}
-                                            render={(props) => <Subscriptions {...props} api={api}
-                                                updateAPI={this.updateAPI} />}
+                                            render={(props) => {
+                                                const subSupported = !!settings.gatewayFeatureCatalog
+                                                    .gatewayFeatures[api.gatewayType]
+                                                    ?.federatedSubscription?.subcriptionSupport;
+                                                return !isAPIProduct
+                                                    && api.gatewayType && api.gatewayType !== 'wso2/synapse'
+                                                    ? (
+                                                        <FederationConfig
+                                                            {...props}
+                                                            api={api}
+                                                            subscriptionSupported={subSupported}
+                                                        />
+                                                    )
+                                                    : <Subscriptions {...props} api={api} updateAPI={this.updateAPI} />;
+                                            }}
                                         />
                                     }
                                     <Route
@@ -1380,8 +1387,6 @@ class Details extends Component {
                                         />
                                     )}
 
-                                    <Route path={Details.subPaths.SUBSCRIPTIONS} render={(props) =>
-                                        <Subscriptions {...props} />} />
                                     {settings && settings.gatewayFeatureCatalog
                                         .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
                                         .monetization.includes("monetization") &&
@@ -1414,8 +1419,10 @@ class Details extends Component {
                                     )}
                                     <Route path={Details.subPaths.EXTERNAL_STORES}
                                         component={ExternalStores} />
-                                    <Route path={Details.subPaths.FEDERATION_CONFIG}
-                                        component={FederationConfig} />
+                                    <Route
+                                        path={Details.subPaths.FEDERATION_CONFIG}
+                                        render={() => <Redirect to={pathPrefix + 'subscriptions'} />}
+                                    />
                                     <Route
                                         path={Details.subPaths.COMMENTS}
                                         render={(props) => <Comments {...props} apiObj={api} />}

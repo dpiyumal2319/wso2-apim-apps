@@ -211,6 +211,7 @@ function TryOutController(props) {
     const user = AuthManager.getUser();
     const isSubValidationDisabled = api.tiers && api.tiers.length === 1
             && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+    const showClassicTryOutAuth = props.showClassicTryOutAuth === true;
 
     const handleAccessTokenChange = ({ newAccessToken }) => {
         if (onConfigChange) {
@@ -792,8 +793,8 @@ function TryOutController(props) {
                                 </Grid>
                             )
                         )}
-                    {((!api.advertiseInfo || !api.advertiseInfo.advertised) 
-                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor)) ? (
+                    {((!api.advertiseInfo || !api.advertiseInfo.advertised)
+                        && ((api.gatewayVendor === 'wso2' || !api.gatewayVendor) || showClassicTryOutAuth)) ? (
                         <Box display='block' justifyContent='center'>
                             <Grid x={8} md={6} className={classes.tokenType} item>
                                 {securitySchemeType === 'BASIC' && (
@@ -947,7 +948,7 @@ function TryOutController(props) {
                                 )}
                             </Grid>
                         </Box>
-                    ) : (api.gatewayVendor && api.gatewayVendor !== 'wso2'
+                    ) : (api.gatewayVendor && api.gatewayVendor !== 'wso2' && !showClassicTryOutAuth
                         && (!api.advertiseInfo || !api.advertiseInfo.advertised)) ? (
                             <FederatedDetailsPanel
                                 classes={classes}

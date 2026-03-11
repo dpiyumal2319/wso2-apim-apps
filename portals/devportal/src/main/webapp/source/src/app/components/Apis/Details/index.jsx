@@ -45,6 +45,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CustomIcon from '../../Shared/CustomIcon';
 import LeftMenuItem from '../../Shared/LeftMenuItem';
 import { ResourceNotFound } from '../../Base/Errors/index';
@@ -63,6 +64,9 @@ const Documents = lazy(() => import('./Documents/Documents' /* webpackChunkName:
 const Credentials = lazy(() => import('./Credentials/Credentials' /* webpackChunkName: "APICredentials" */));
 const FederatedApiCredentials = lazy(() => import(
     './Credentials/FederatedApiCredentials' /* webpackChunkName: "FederatedApiCredentials" */
+));
+const FederatedApiSubscriptions = lazy(() => import(
+    './Credentials/FederatedApiSubscriptions' /* webpackChunkName: "FederatedApiSubscriptions" */
 ));
 const Comments = lazy(() => import('./Comments/Comments' /* webpackChunkName: "APIComments" */));
 const Sdk = lazy(() => import('./Sdk' /* webpackChunkName: "APISdk" */));
@@ -92,6 +96,7 @@ const LoadableSwitch = withRouter((props) => {
     const credentialsWizardPath = isMCPServer ? '/mcp-servers/:serverUuid/credentials/wizard' : '/apis/:apiUuid/credentials/wizard';
     const commentsPath = isMCPServer ? '/mcp-servers/:serverUuid/comments' : '/apis/:apiUuid/comments';
     const credentialsPath = isMCPServer ? '/mcp-servers/:serverUuid/credentials' : '/apis/:apiUuid/credentials';
+    const subscriptionsPath = '/apis/:apiUuid/subscriptions';
     const apiChatPath = '/apis/:apiUuid/api-chat';
     const sdkPath = '/apis/:apiUuid/sdk';
     const redirectFromPath = isMCPServer ? '/mcp-servers/:serverUuid' : '/apis/:apiUuid';
@@ -121,6 +126,23 @@ const LoadableSwitch = withRouter((props) => {
                 {!isMCPServer && <Route path={solaceTopicsPath} component={SolaceTopicsInfo} />}
                 <Route exact path={credentialsWizardPath} component={Wizard} />
                 <Route path={commentsPath} component={Comments} />
+                {!isMCPServer && (
+                    <Route
+                        path={subscriptionsPath}
+                        render={(routeProps) => {
+                            const isFederated = api.gatewayVendor && api.gatewayVendor !== 'wso2';
+                            if (!isFederated) {
+                                return <Redirect to={`/apis/${entityUuid}/credentials`} />;
+                            }
+                            const isSubDisabled = api && api.tiers && api.tiers.length === 1
+                                && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+                            if (isSubDisabled) {
+                                return <Redirect to={`/apis/${entityUuid}/credentials`} />;
+                            }
+                            return <FederatedApiSubscriptions {...routeProps} />;
+                        }}
+                    />
+                )}
                 <Route
                     path={credentialsPath}
                     component={api.gatewayVendor && api.gatewayVendor !== 'wso2'
@@ -358,12 +380,26 @@ class DetailsLegacy extends React.Component {
                         const restApi = new Api();
                         restApi.getApiSubscriptionSupport(api.body.id)
                             .then((response) => {
-                                this.setState({ subscriptionStatus: response.body.subscriptionStatus });
+                                this.setState({
+                                    subscriptionStatus: response.body.subscriptionStatus,
+                                    subscriptionSupportConfigured: true,
+                                });
                             })
                             .catch((error) => {
-                                console.error('Error fetching subscription support:', error);
-                                // On error, treat as OPEN (graceful fallback)
-                                this.setState({ subscriptionStatus: 'OPEN' });
+                                if (error.status === 404) {
+                                    // Publisher has not saved federation config yet.
+                                    // API console falls back to JWT; subscriptions/credentials pages show error.
+                                    this.setState({
+                                        subscriptionStatus: 'OPEN',
+                                        subscriptionSupportConfigured: false,
+                                    });
+                                } else {
+                                    console.error('Error fetching subscription support:', error);
+                                    this.setState({
+                                        subscriptionStatus: 'OPEN',
+                                        subscriptionSupportConfigured: null,
+                                    });
+                                }
                             });
                     } else {
                         // WSO2 gateway - subscriptions work as usual
@@ -458,6 +494,7 @@ class DetailsLegacy extends React.Component {
             tryOutExpanded: true,
             apiChatEnabled: false,
             subscriptionStatus: null, // null = loading, 'OPEN' | 'SECURED'
+            subscriptionSupportConfigured: null, // null = unknown/loading, true = configured, false = 404 not configured
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -562,7 +599,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionStatus,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionSupportConfigured,
         } = this.state;
         const {
             custom: {
@@ -581,7 +618,6 @@ class DetailsLegacy extends React.Component {
         const isMCPServer = window.location.pathname.includes('/mcp-servers');
         const pathPrefix = (isMCPServer ? '/mcp-servers/' : '/apis/') + this.api_uuid + '/';
         const isFederated = api && api.gatewayVendor && api.gatewayVendor !== 'wso2';
-        const isFederatedSubHidden = isFederated && subscriptionStatus === 'OPEN';
         if (!api && notFound) {
             return <ResourceNotFound />;
         }
@@ -591,6 +627,7 @@ class DetailsLegacy extends React.Component {
         const isAsyncApi = this.isAsyncAPI(api);
         const isSubValidationDisabled = api && api.tiers && api.tiers.length === 1
             && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
+        const showFederatedCredentialPages = !isFederated || subscriptionSupportConfigured !== false;
 
         return api ? (
             <Root>
@@ -656,9 +693,24 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && !isSubValidationDisabled
-                                && !isFederatedSubHidden && (
+                            {user && showCredentials && (!isSubValidationDisabled || isFederated)
+                                && showFederatedCredentialPages && (
                                 <>
+                                    {isFederated && !isSubValidationDisabled && (
+                                        <LeftMenuItem
+                                            text={(
+                                                <FormattedMessage
+                                                    id='Apis.Details.index.subscriptions'
+                                                    defaultMessage='Subscriptions'
+                                                />
+                                            )}
+                                            route='subscriptions'
+                                            iconText='credentials'
+                                            to={pathPrefix + 'subscriptions'}
+                                            open={open}
+                                            id='left-menu-subscriptions'
+                                        />
+                                    )}
                                     <LeftMenuItem
                                         text={isFederated ? (
                                             <FormattedMessage
@@ -672,7 +724,7 @@ class DetailsLegacy extends React.Component {
                                             />
                                         )}
                                         route='credentials'
-                                        iconText='credentials'
+                                        icon={<VpnKeyIcon style={{ fontSize: 'large', padding: 8 }} />}
                                         to={pathPrefix + 'credentials'}
                                         open={open}
                                         id='left-menu-credentials'

@@ -27,12 +27,19 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
-import { FormattedMessage } from 'react-intl';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import { FormattedMessage, defineMessages, useIntl } from 'react-intl';
 import APIContext from 'AppComponents/Apis/Details/components/ApiContext';
 import API from 'AppData/api.js';
 import AppAlert from 'AppComponents/Shared/Alert';
 import Progress from 'AppComponents/Shared/Progress';
-import {getSubscriptionOptionsEditor, getInvocationRenderer} from './FederationConfigRegistry';
+import ResourceNotFound from 'AppComponents/Base/Errors/ResourceNotFound';
+import { getSubscriptionOptionsEditor, getInvocationRenderer } from './FederationConfigRegistry';
+
+const SUBSCRIPTIONLESS_PLAN = 'DefaultSubscriptionless';
 
 const PREFIX = 'FederationConfig';
 
@@ -41,6 +48,18 @@ const classes = {
     paper: `${PREFIX}-paper`,
     sectionTitle: `${PREFIX}-sectionTitle`,
 };
+
+const messages = defineMessages({
+    apiNotFoundTitle: {
+        id: 'Apis.Details.FederationConfig.api.not.found.title',
+        defaultMessage: 'API not found: {apiId}',
+    },
+    apiNotFoundBody: {
+        id: 'Apis.Details.FederationConfig.api.not.found.body',
+        defaultMessage: 'The requested API is not available. '
+            + 'It may have been deleted or you may no longer have access.',
+    },
+});
 
 const Root = styled('div')(({ theme }) => ({
     [`&.${classes.root}`]: {
@@ -72,31 +91,41 @@ function parseOptionsBody(snapshotOptions) {
 }
 
 /**
- * Publisher Federation Configuration page.
+ * Publisher Subscription Configuration page.
  * Uses schema-driven registry for subscription options editing.
  * Sends curatedPlanSelections [{planId, enabled}] on save.
  */
-function FederationConfig() {
+function FederationConfig({ subscriptionSupported = false }) {
     const { api } = useContext(APIContext);
+    const intl = useIntl();
     const apiId = api.id;
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState(null);
     const [error, setError] = useState(null);
+    const [notFound, setNotFound] = useState(false);
+    const [invocationDialogOpen, setInvocationDialogOpen] = useState(false);
 
-    // Editable state
-    const [federationEnabled, setFederationEnabled] = useState(false);
+    // Derive subscription enabled state from API's policies (not from federation config)
+    const isSubValidationDisabled = api && api.policies && api.policies.length === 1
+        && api.policies[0].includes(SUBSCRIPTIONLESS_PLAN);
+    const [subscriptionEnabled, setSubscriptionEnabled] = useState(!isSubValidationDisabled);
     const [curatedPlans, setCuratedPlans] = useState(null);
+
+    const resourceNotFoundMessage = {
+        title: intl.formatMessage(messages.apiNotFoundTitle, { apiId }),
+        body: intl.formatMessage(messages.apiNotFoundBody),
+    };
 
     const fetchConfig = useCallback(() => {
         setLoading(true);
         setError(null);
+        setNotFound(false);
         API.getApiFederationConfig(apiId)
             .then((response) => {
                 const data = response.body;
                 setConfig(data);
-                setFederationEnabled(data.federationEnabled || false);
 
                 // Use publisherCuratedConfig (has enabled flags) or fall back to live snapshot
                 const source = data.publisherCuratedConfig || data.gatewaySupportSnapshot;
@@ -107,8 +136,8 @@ function FederationConfig() {
                 console.error('Error fetching federation config:', err);
                 if (err.status === 404) {
                     setConfig(null);
-                    setFederationEnabled(false);
                     setCuratedPlans(null);
+                    setNotFound(true);
                 } else {
                     setError('Failed to load federation configuration.');
                 }
@@ -124,10 +153,10 @@ function FederationConfig() {
     const curatedConfig = config?.publisherCuratedConfig;
     const displaySource = curatedConfig || snapshot;
     const isStale = config?.isStale;
+    const requiresInitialSave = !!(config && snapshot && !curatedConfig);
     const hasNoConfig = !config;
     const schemaName = displaySource?.subscriptionOptions?.schemaName;
     const OptionsEditor = getSubscriptionOptionsEditor(schemaName);
-
     const invocationTemplate = displaySource?.invocationTemplate;
     const InvocationRenderer = getInvocationRenderer(invocationTemplate?.schemaName);
 
@@ -198,18 +227,24 @@ function FederationConfig() {
         }
 
         const body = {
-            federationEnabled,
+            ...(subscriptionSupported && { subscriptionEnabled }),
             curatedPlanSelections: curatedPlanSelections ? JSON.stringify(curatedPlanSelections) : null,
         };
 
         API.updateApiFederationConfig(apiId, body)
             .then(() => {
-                AppAlert.info('Federation configuration updated.');
+                AppAlert.info('Subscription configuration updated.');
                 fetchConfig();
             })
             .catch((err) => {
                 console.error('Error saving federation config:', err);
-                AppAlert.error('Failed to save federation configuration.');
+                if (err.status === 404) {
+                    setConfig(null);
+                    setCuratedPlans(null);
+                    setNotFound(true);
+                } else {
+                    AppAlert.error('Failed to save subscription configuration.');
+                }
             })
             .finally(() => setSaving(false));
     };
@@ -226,20 +261,24 @@ function FederationConfig() {
         );
     }
 
+    if (notFound) {
+        return <ResourceNotFound message={resourceNotFoundMessage} />;
+    }
+
     return (
         <Root className={classes.root}>
             <Typography variant='h5' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.FederationConfig.title'
-                    defaultMessage='Federation Configuration'
+                    defaultMessage='Subscriptions'
                 />
             </Typography>
             <Typography variant='body2' color='textSecondary' gutterBottom>
                 <FormattedMessage
                     id='Apis.Details.FederationConfig.description'
                     defaultMessage={
-                        'Control how this API is presented to developers '
-                        + 'in the Developer Portal for federated subscriptions.'
+                        'Control subscription behavior and curation for this API '
+                        + 'in the Developer Portal.'
                     }
                 />
             </Typography>
@@ -273,43 +312,79 @@ function FederationConfig() {
                     />
                 </Alert>
             )}
-
-            {/* Enable/Disable Toggle */}
-            <Paper className={classes.paper} elevation={0} variant='outlined'>
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={federationEnabled}
-                            onChange={(e) => setFederationEnabled(e.target.checked)}
-                            color='primary'
-                        />
-                    }
-                    label={
-                        <Typography variant='subtitle1'>
-                            <FormattedMessage
-                                id='Apis.Details.FederationConfig.enableLabel'
-                                defaultMessage='Enable Federation'
-                            />
-                        </Typography>
-                    }
-                />
-                <Typography variant='body2' color='textSecondary' sx={{ ml: 6 }}>
+            {requiresInitialSave && (
+                <Alert severity='warning' sx={{ mb: 2 }}>
                     <FormattedMessage
-                        id='Apis.Details.FederationConfig.enableHelp'
-                        defaultMessage={
-                            'When enabled, developers can create federated subscriptions '
-                            + 'to this API through the Developer Portal.'
+                        id='Apis.Details.FederationConfig.initialSaveRequired'
+                        defaultMessage={'This API is not enabled for Developer Portal credentials yet. '
+                            + 'Review and save this page once to enable credential-based consumption.'}
+                    />
+                </Alert>
+            )}
+
+            {/* Enable/Disable Toggle — only shown when gateway supports subscriptions */}
+            {subscriptionSupported && (
+                <Paper className={classes.paper} elevation={0} variant='outlined'>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={subscriptionEnabled}
+                                onChange={(e) => setSubscriptionEnabled(e.target.checked)}
+                                color='primary'
+                            />
+                        }
+                        label={
+                            <Typography variant='subtitle1'>
+                                <FormattedMessage
+                                    id='Apis.Details.FederationConfig.enableLabel'
+                                    defaultMessage='Subscription Validation'
+                                />
+                            </Typography>
                         }
                     />
-                </Typography>
-            </Paper>
+                    <Typography variant='body2' color='textSecondary' sx={{ ml: 6 }}>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.enableHelp'
+                            defaultMessage={
+                                'When enabled, the gateway validates application subscriptions before allowing '
+                                + 'API access. When disabled, any valid credential can invoke this API without a '
+                                + 'subscription.'
+                            }
+                        />
+                    </Typography>
+                </Paper>
+            )}
+
+            {/* Context banner: tells publisher when devportal developers will see these options */}
+            <Alert
+                severity='info'
+                sx={{ mb: 2 }}
+            >
+                {subscriptionSupported ? (
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.subscriptionTimeNote'
+                        defaultMessage={
+                            'The following options will be presented to developers at subscription time '
+                            + 'in the Developer Portal.'
+                        }
+                    />
+                ) : (
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.keyGenTimeNote'
+                        defaultMessage={
+                            'This gateway does not support subscriptions. The following options will be '
+                            + 'presented to developers at key generation time in the Developer Portal.'
+                        }
+                    />
+                )}
+            </Alert>
 
             {/* No snapshot / no config message */}
             {hasNoConfig && !snapshot && (
                 <Alert severity='info' sx={{ mb: 2 }}>
                     <FormattedMessage
                         id='Apis.Details.FederationConfig.noConfig'
-                        defaultMessage='No federation configuration found. Save to create one.'
+                        defaultMessage='No subscription configuration found. Save to create one.'
                     />
                 </Alert>
             )}
@@ -332,9 +407,7 @@ function FederationConfig() {
                     />
                 </Paper>
             )}
-
-            {/* Invocation Instruction (schema-driven, read-only from gateway snapshot) */}
-            {InvocationRenderer && invocationTemplate?.body && (
+            {invocationTemplate && (
                 <Paper className={classes.paper} elevation={0} variant='outlined'>
                     <Typography className={classes.sectionTitle} variant='subtitle1'>
                         <FormattedMessage
@@ -342,8 +415,22 @@ function FederationConfig() {
                             defaultMessage='Invocation Instructions'
                         />
                     </Typography>
-                    <Divider sx={{ my: 1 }} />
-                    <InvocationRenderer body={invocationTemplate.body} />
+                    <Typography variant='body2' color='textSecondary'>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.invocationHint'
+                            defaultMessage='Review how generated credentials should be sent at runtime.'
+                        />
+                    </Typography>
+                    <Button
+                        size='small'
+                        sx={{ mt: 1 }}
+                        onClick={() => setInvocationDialogOpen(true)}
+                    >
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.viewInvocation'
+                            defaultMessage='View Invocation Instructions'
+                        />
+                    </Button>
                 </Paper>
             )}
 
@@ -364,6 +451,39 @@ function FederationConfig() {
                     />
                 </Button>
             </Box>
+            <Dialog
+                open={invocationDialogOpen}
+                onClose={() => setInvocationDialogOpen(false)}
+                maxWidth='sm'
+                fullWidth
+            >
+                <DialogTitle>
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.invocationDialogTitle'
+                        defaultMessage='Invocation Instructions'
+                    />
+                </DialogTitle>
+                <DialogContent dividers>
+                    {InvocationRenderer ? (
+                        <InvocationRenderer body={invocationTemplate?.body} />
+                    ) : (
+                        <Typography variant='body2' color='textSecondary'>
+                            <FormattedMessage
+                                id='Apis.Details.FederationConfig.noInvocationRenderer'
+                                defaultMessage='No renderer is available for this invocation schema.'
+                            />
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setInvocationDialogOpen(false)}>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.close'
+                            defaultMessage='Close'
+                        />
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Root>
     );
 }
