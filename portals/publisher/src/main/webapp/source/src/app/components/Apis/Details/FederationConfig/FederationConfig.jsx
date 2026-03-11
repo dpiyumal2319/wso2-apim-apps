@@ -27,12 +27,17 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
-import { FormattedMessage } from 'react-intl';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import { FormattedMessage, defineMessages, useIntl } from 'react-intl';
 import APIContext from 'AppComponents/Apis/Details/components/ApiContext';
 import API from 'AppData/api.js';
 import AppAlert from 'AppComponents/Shared/Alert';
 import Progress from 'AppComponents/Shared/Progress';
-import { getSubscriptionOptionsEditor } from './FederationConfigRegistry';
+import ResourceNotFound from 'AppComponents/Base/Errors/ResourceNotFound';
+import { getSubscriptionOptionsEditor, getInvocationRenderer } from './FederationConfigRegistry';
 
 const SUBSCRIPTIONLESS_PLAN = 'DefaultSubscriptionless';
 
@@ -43,6 +48,18 @@ const classes = {
     paper: `${PREFIX}-paper`,
     sectionTitle: `${PREFIX}-sectionTitle`,
 };
+
+const messages = defineMessages({
+    apiNotFoundTitle: {
+        id: 'Apis.Details.FederationConfig.api.not.found.title',
+        defaultMessage: 'API not found: {apiId}',
+    },
+    apiNotFoundBody: {
+        id: 'Apis.Details.FederationConfig.api.not.found.body',
+        defaultMessage: 'The requested API is not available. '
+            + 'It may have been deleted or you may no longer have access.',
+    },
+});
 
 const Root = styled('div')(({ theme }) => ({
     [`&.${classes.root}`]: {
@@ -80,12 +97,15 @@ function parseOptionsBody(snapshotOptions) {
  */
 function FederationConfig({ subscriptionSupported = false }) {
     const { api } = useContext(APIContext);
+    const intl = useIntl();
     const apiId = api.id;
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState(null);
     const [error, setError] = useState(null);
+    const [notFound, setNotFound] = useState(false);
+    const [invocationDialogOpen, setInvocationDialogOpen] = useState(false);
 
     // Derive subscription enabled state from API's policies (not from federation config)
     const isSubValidationDisabled = api && api.policies && api.policies.length === 1
@@ -93,9 +113,15 @@ function FederationConfig({ subscriptionSupported = false }) {
     const [subscriptionEnabled, setSubscriptionEnabled] = useState(!isSubValidationDisabled);
     const [curatedPlans, setCuratedPlans] = useState(null);
 
+    const resourceNotFoundMessage = {
+        title: intl.formatMessage(messages.apiNotFoundTitle, { apiId }),
+        body: intl.formatMessage(messages.apiNotFoundBody),
+    };
+
     const fetchConfig = useCallback(() => {
         setLoading(true);
         setError(null);
+        setNotFound(false);
         API.getApiFederationConfig(apiId)
             .then((response) => {
                 const data = response.body;
@@ -111,6 +137,7 @@ function FederationConfig({ subscriptionSupported = false }) {
                 if (err.status === 404) {
                     setConfig(null);
                     setCuratedPlans(null);
+                    setNotFound(true);
                 } else {
                     setError('Failed to load federation configuration.');
                 }
@@ -126,9 +153,12 @@ function FederationConfig({ subscriptionSupported = false }) {
     const curatedConfig = config?.publisherCuratedConfig;
     const displaySource = curatedConfig || snapshot;
     const isStale = config?.isStale;
+    const requiresInitialSave = !!(config && snapshot && !curatedConfig);
     const hasNoConfig = !config;
     const schemaName = displaySource?.subscriptionOptions?.schemaName;
     const OptionsEditor = getSubscriptionOptionsEditor(schemaName);
+    const invocationTemplate = displaySource?.invocationTemplate;
+    const InvocationRenderer = getInvocationRenderer(invocationTemplate?.schemaName);
 
     const handlePlanToggle = (planId, enabled) => {
         setCuratedPlans((prev) => {
@@ -208,7 +238,13 @@ function FederationConfig({ subscriptionSupported = false }) {
             })
             .catch((err) => {
                 console.error('Error saving federation config:', err);
-                AppAlert.error('Failed to save subscription configuration.');
+                if (err.status === 404) {
+                    setConfig(null);
+                    setCuratedPlans(null);
+                    setNotFound(true);
+                } else {
+                    AppAlert.error('Failed to save subscription configuration.');
+                }
             })
             .finally(() => setSaving(false));
     };
@@ -223,6 +259,10 @@ function FederationConfig({ subscriptionSupported = false }) {
                 <Alert severity='error'>{error}</Alert>
             </Box>
         );
+    }
+
+    if (notFound) {
+        return <ResourceNotFound message={resourceNotFoundMessage} />;
     }
 
     return (
@@ -269,6 +309,15 @@ function FederationConfig({ subscriptionSupported = false }) {
                             + 'Click "Load Latest" to see the updated configuration, '
                             + 'or save to acknowledge the current state.'
                         }
+                    />
+                </Alert>
+            )}
+            {requiresInitialSave && (
+                <Alert severity='warning' sx={{ mb: 2 }}>
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.initialSaveRequired'
+                        defaultMessage={'This API is not enabled for Developer Portal credentials yet. '
+                            + 'Review and save this page once to enable credential-based consumption.'}
                     />
                 </Alert>
             )}
@@ -358,6 +407,32 @@ function FederationConfig({ subscriptionSupported = false }) {
                     />
                 </Paper>
             )}
+            {invocationTemplate && (
+                <Paper className={classes.paper} elevation={0} variant='outlined'>
+                    <Typography className={classes.sectionTitle} variant='subtitle1'>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.invocationTitle'
+                            defaultMessage='Invocation Instructions'
+                        />
+                    </Typography>
+                    <Typography variant='body2' color='textSecondary'>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.invocationHint'
+                            defaultMessage='Review how generated credentials should be sent at runtime.'
+                        />
+                    </Typography>
+                    <Button
+                        size='small'
+                        sx={{ mt: 1 }}
+                        onClick={() => setInvocationDialogOpen(true)}
+                    >
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.viewInvocation'
+                            defaultMessage='View Invocation Instructions'
+                        />
+                    </Button>
+                </Paper>
+            )}
 
             {/* Save Button */}
             <Box display='flex' gap={2} mt={2}>
@@ -376,6 +451,39 @@ function FederationConfig({ subscriptionSupported = false }) {
                     />
                 </Button>
             </Box>
+            <Dialog
+                open={invocationDialogOpen}
+                onClose={() => setInvocationDialogOpen(false)}
+                maxWidth='sm'
+                fullWidth
+            >
+                <DialogTitle>
+                    <FormattedMessage
+                        id='Apis.Details.FederationConfig.invocationDialogTitle'
+                        defaultMessage='Invocation Instructions'
+                    />
+                </DialogTitle>
+                <DialogContent dividers>
+                    {InvocationRenderer ? (
+                        <InvocationRenderer body={invocationTemplate?.body} />
+                    ) : (
+                        <Typography variant='body2' color='textSecondary'>
+                            <FormattedMessage
+                                id='Apis.Details.FederationConfig.noInvocationRenderer'
+                                defaultMessage='No renderer is available for this invocation schema.'
+                            />
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setInvocationDialogOpen(false)}>
+                        <FormattedMessage
+                            id='Apis.Details.FederationConfig.close'
+                            defaultMessage='Close'
+                        />
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Root>
     );
 }

@@ -123,6 +123,7 @@ export default function FederatedApiSubscriptions() {
     const [unsubscribing, setUnsubscribing] = useState(null);
     const [selectedAppId, setSelectedAppId] = useState('');
     const [selectedOption, setSelectedOption] = useState(null);
+    const [supportNotConfigured, setSupportNotConfigured] = useState(false);
 
     const optionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
 
@@ -141,6 +142,7 @@ export default function FederatedApiSubscriptions() {
 
     const loadSubscriptionSupport = () => {
         setOptionsLoading(true);
+        setSupportNotConfigured(false);
         restApi.getApiSubscriptionSupport(api.id)
             .then((response) => {
                 const supportInfo = response.body || {};
@@ -149,6 +151,10 @@ export default function FederatedApiSubscriptions() {
             .catch((error) => {
                 console.error('Failed to load subscription support', error);
                 setSubscriptionOptions(null);
+                if (error.status === 404) {
+                    setSupportNotConfigured(true);
+                    Alert.error('Subscriptions are not available for this API. Please contact your administrator.');
+                }
             })
             .finally(() => setOptionsLoading(false));
     };
@@ -179,6 +185,10 @@ export default function FederatedApiSubscriptions() {
     };
 
     const handleCreateSubscription = () => {
+        if (supportNotConfigured) {
+            Alert.error('Subscriptions are not available for this API. Please contact your administrator.');
+            return;
+        }
         if (!selectedAppId) {
             Alert.error('Please select an application');
             return;
@@ -234,7 +244,7 @@ export default function FederatedApiSubscriptions() {
 
     const noAppsAvailable = !applicationsAvailable || applicationsAvailable.length === 0;
     const noExistingSubscriptions = !subscribedApplications || subscribedApplications.length === 0;
-    const subscriptionActionDisabled = false;
+    const subscriptionActionDisabled = supportNotConfigured;
     const hasOptions = !!(subscriptionOptions && subscriptionOptions.body);
     const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
         subscriptionOptions?.schemaName,
@@ -267,6 +277,14 @@ export default function FederatedApiSubscriptions() {
                         </Button>
                     </Box>
                 </Box>
+                {supportNotConfigured && (
+                    <MuiAlert severity='error' sx={{ mb: 2 }}>
+                        <FormattedMessage
+                            id='FederatedApiSubscriptions.config.missing'
+                            defaultMessage='Subscriptions are not available for this API. Please contact your administrator.'
+                        />
+                    </MuiAlert>
+                )}
                 <MuiAlert severity='info' sx={{ mb: 2 }}>
                     <FormattedMessage
                         id='FederatedApiSubscriptions.info'

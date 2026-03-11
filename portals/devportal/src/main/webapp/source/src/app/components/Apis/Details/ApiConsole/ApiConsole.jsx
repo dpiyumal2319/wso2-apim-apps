@@ -216,6 +216,11 @@ class ApiConsole extends React.Component {
                         defaultSecurityScheme = apiData.securityScheme.includes('oauth2') ? 'OAUTH' : 'BASIC';
                     }
                 }
+                if (apiData.gatewayVendor && apiData.gatewayVendor !== 'wso2'
+                    && this.context.subscriptionSupportConfigured === false) {
+                    // No curated federated config is available yet. Fall back to the classic token input mode.
+                    defaultSecurityScheme = 'OAUTH';
+                }
 
                 this.setState({
                     api: apiData,
@@ -512,6 +517,8 @@ class ApiConsole extends React.Component {
         const downloadSwagger = JSON.stringify({ ...swagger });
         const downloadLink = 'data:text/json;charset=utf-8, ' + encodeURIComponent(downloadSwagger);
         const fileName = 'swagger.json';
+        const showClassicTryOutAuth = api && api.gatewayVendor && api.gatewayVendor !== 'wso2'
+            && this.context.subscriptionSupportConfigured === false;
 
         if (api == null || swagger == null) {
             return <Progress />;
@@ -619,6 +626,7 @@ class ApiConsole extends React.Component {
                             selectedEndpoint={selectedEndpoint}
                             api={this.state.api}
                             URLs={null}
+                            showClassicTryOutAuth={showClassicTryOutAuth}
                         />
                     </Grid>
 
