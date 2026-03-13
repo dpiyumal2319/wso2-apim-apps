@@ -1289,17 +1289,18 @@ class Details extends Component {
                                     />
                                     {settings && settings.gatewayFeatureCatalog
                                         .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse'] &&
-                                        (
-                                            settings.gatewayFeatureCatalog
-                                                .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
-                                                .subscriptions.includes('subscriptions')
-                                            || (
-                                                !isAPIProduct
-                                                && !!settings.gatewayFeatureCatalog
-                                                    .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
-                                                    .federatedSubscription
-                                            )
-                                        ) &&
+                                        (() => {
+                                            const gatewayFeatureSet = settings.gatewayFeatureCatalog
+                                                .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse'];
+                                            const subscriptionCapability = gatewayFeatureSet?.subscriptions;
+                                            const hasClassicSubscriptions = Array.isArray(subscriptionCapability)
+                                                ? subscriptionCapability.includes('subscriptions')
+                                                : !!subscriptionCapability?.supported;
+
+                                            return hasClassicSubscriptions || (
+                                                !isAPIProduct && !!gatewayFeatureSet?.federatedSubscription
+                                            );
+                                        })() &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}
                                             render={(props) => {

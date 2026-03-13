@@ -1187,6 +1187,8 @@
   "Apis.Details.FederationConfig.ApiKeyInvocation.query.method": "Query Parameter ({queryParamName})",
   "Apis.Details.FederationConfig.ApiKeyInvocation.query.name": "Query Parameter Name:",
   "Apis.Details.FederationConfig.ApiKeyInvocation.title": "Invocation Instructions",
+  "Apis.Details.FederationConfig.api.not.found.body": "The requested API is not available. It may have been deleted or you may no longer have access.",
+  "Apis.Details.FederationConfig.api.not.found.title": "API not found: {apiId}",
   "Apis.Details.FederationConfig.close": "Close",
   "Apis.Details.FederationConfig.description": "Control subscription behavior and curation for this API in the Developer Portal.",
   "Apis.Details.FederationConfig.editors.OptionGroupsEditor.help": "Toggle which option groups are required and which items are available to developers.",

@@ -143,7 +143,8 @@ export default function DevelopSectionMenu(props) {
 
     const intl = useIntl();
     const hasClassicSubscriptions = Array.isArray(componentValidator?.subscriptions)
-        && componentValidator.subscriptions.includes('subscriptions');
+        ? componentValidator.subscriptions.includes('subscriptions')
+        : !!componentValidator?.subscriptions?.supported;
     const hasFederatedSubscriptions = !!componentValidator?.federatedSubscription;
     const showSubscriptionsMenu = !isAPIProduct && (hasClassicSubscriptions || hasFederatedSubscriptions);
 
