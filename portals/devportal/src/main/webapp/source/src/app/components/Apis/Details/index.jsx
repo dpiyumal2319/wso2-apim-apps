@@ -45,7 +45,6 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
-import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CustomIcon from '../../Shared/CustomIcon';
 import LeftMenuItem from '../../Shared/LeftMenuItem';
 import { ResourceNotFound } from '../../Base/Errors/index';
@@ -91,7 +90,6 @@ const LoadableSwitch = withRouter((props) => {
     const credentialsWizardPath = isMCPServer ? '/mcp-servers/:serverUuid/credentials/wizard' : '/apis/:apiUuid/credentials/wizard';
     const commentsPath = isMCPServer ? '/mcp-servers/:serverUuid/comments' : '/apis/:apiUuid/comments';
     const credentialsPath = isMCPServer ? '/mcp-servers/:serverUuid/credentials' : '/apis/:apiUuid/credentials';
-    const subscriptionsPath = '/apis/:apiUuid/subscriptions';
     const apiKeysPath = '/apis/:apiUuid/api-keys';
     const apiChatPath = '/apis/:apiUuid/api-chat';
     const sdkPath = '/apis/:apiUuid/sdk';
@@ -122,16 +120,7 @@ const LoadableSwitch = withRouter((props) => {
                 {!isMCPServer && <Route path={solaceTopicsPath} component={SolaceTopicsInfo} />}
                 <Route exact path={credentialsWizardPath} component={Wizard} />
                 <Route path={commentsPath} component={Comments} />
-                {!isMCPServer && (
-                    <Route
-                        path={subscriptionsPath}
-                        render={() => <Redirect to={`/apis/${entityUuid}/credentials`} />}
-                    />
-                )}
-                <Route
-                    path={credentialsPath}
-                    component={Credentials}
-                />
+                <Route path={credentialsPath} component={Credentials} />
                 {!isMCPServer && <Route path={apiKeysPath} component={ApiKeys} />}
                 {tryoutRoute}
                 {!isMCPServer && apiChatEnabled && (
@@ -643,8 +632,10 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && !isSubValidationDisabled && (
+                            {user && showCredentials && !isSubValidationDisabled
+                                && (api.gatewayVendor === 'wso2' || !api.gatewayVendor || api.gatewayType === 'solace') && (
                                 <>
+
                                     <LeftMenuItem
                                         text={(
                                             <FormattedMessage
@@ -653,7 +644,7 @@ class DetailsLegacy extends React.Component {
                                             />
                                         )}
                                         route='credentials'
-                                        icon={<VpnKeyIcon style={{ fontSize: 'large', padding: 8 }} />}
+                                        iconText='credentials'
                                         to={pathPrefix + 'credentials'}
                                         open={open}
                                         id='left-menu-credentials'
@@ -673,6 +664,7 @@ class DetailsLegacy extends React.Component {
                                             id='left-menu-api-keys'
                                         />
                                     )}
+
                                 </>
                             )}
                             {showTryout && (api.gatewayType !== 'wso2/apk'

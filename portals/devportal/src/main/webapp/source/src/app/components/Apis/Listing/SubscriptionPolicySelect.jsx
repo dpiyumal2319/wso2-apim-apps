@@ -20,29 +20,17 @@ import { styled } from '@mui/material/styles';
 import PropTypes from 'prop-types';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import Typography from '@mui/material/Typography';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import { FormattedMessage } from 'react-intl';
 import { useTheme } from '@mui/material';
-import Api from 'AppData/api';
 import { ScopeValidation, resourceMethods, resourcePaths } from '../../Shared/ScopeValidation';
-import {
-    getSubscriptionOptionsRenderer,
-    isSubscriptionOptionSelectionComplete,
-} from '../Details/Credentials/federated/CredentialRendererRegistry';
 
 const PREFIX = 'SubscriptionPolicySelectLegacy';
 
 const classes = {
     root: `${PREFIX}-root`,
     buttonGap: `${PREFIX}-buttonGap`,
-    federatedButton: `${PREFIX}-federatedButton`,
     select: `${PREFIX}-select`,
 };
 
@@ -61,9 +49,6 @@ const Root = styled('div')((
         '& span span': {
             color: theme.palette.getContrastText(theme.palette.primary.main),
         },
-    },
-    [`& .${classes.federatedButton}`]: {
-        marginLeft: 'auto !important',
     },
 
     [`& .${classes.select}`]: {
@@ -85,10 +70,6 @@ class SubscriptionPolicySelectLegacy extends React.Component {
         super(props);
         this.state = {
             selectedPolicy: null,
-            subscriptionOptions: null,
-            selectedOption: null,
-            optionsLoading: false,
-            optionsDialogOpen: false,
         };
     }
 
@@ -97,38 +78,10 @@ class SubscriptionPolicySelectLegacy extends React.Component {
      * @returns {void}
      */
     componentDidMount() {
-        const { policies, isFederatedApi } = this.props;
-        if (!isFederatedApi) {
-            this.setState({ selectedPolicy: policies[0] });
-        }
+        const { policies } = this.props;
+
+        this.setState({ selectedPolicy: policies[0] });
     }
-
-    openFederatedOptionsDialog = () => {
-        const { apiId } = this.props;
-        this.setState({
-            optionsDialogOpen: true,
-            optionsLoading: true,
-            subscriptionOptions: null,
-            selectedOption: null,
-        });
-        new Api().getApiSubscriptionSupport(apiId)
-            .then((response) => {
-                const supportInfo = response?.body || {};
-                this.setState({ subscriptionOptions: supportInfo.subscriptionOptions || null });
-            })
-            .catch(() => {
-                this.setState({ subscriptionOptions: null });
-            })
-            .finally(() => this.setState({ optionsLoading: false }));
-    };
-
-    closeFederatedOptionsDialog = () => {
-        this.setState({
-            optionsDialogOpen: false,
-            selectedOption: null,
-            optionsLoading: false,
-        });
-    };
 
     /**
      * renders method.
@@ -136,49 +89,35 @@ class SubscriptionPolicySelectLegacy extends React.Component {
      */
     render() {
         const {
-            policies, apiId, handleSubscribe, applicationId, isFederatedApi,
+            policies, apiId, handleSubscribe, applicationId,
         } = this.props;
-        const {
-            selectedPolicy, optionsLoading, subscriptionOptions, selectedOption, optionsDialogOpen,
-        } = this.state;
-
-        const optionsRenderer = getSubscriptionOptionsRenderer(subscriptionOptions?.schemaName);
-        const hasOptions = !!(subscriptionOptions && subscriptionOptions.body && optionsRenderer);
-        const requiresSelection = hasOptions && !isSubscriptionOptionSelectionComplete(
-            subscriptionOptions?.schemaName,
-            subscriptionOptions?.body,
-            selectedOption,
-        );
+        const { selectedPolicy } = this.state;
 
         return (
             policies
             && (
                 <Root className={classes.root}>
-                    {isFederatedApi ? (
-                        <div />
-                    ) : (
-                        <Autocomplete
-                            id='policy-select'
-                            disableClearable
-                            options={policies}
-                            value={selectedPolicy}
-                            onChange={(e, value) => {
-                                this.setState({ selectedPolicy: value });
-                            }}
-                            style={{ width: 150 }}
-                            renderInput={(params) => (<TextField size='small' variant='standard' {...params} />)}
-                            renderOption={(props, policy) => (
-                                <MenuItem
-                                    {...props}
-                                    value={policy}
-                                    key={policy}
-                                    id={'policy-select-' + policy}
-                                >
-                                    {policy}
-                                </MenuItem>
-                            )}
-                        />
-                    )}
+                    <Autocomplete
+                        id='policy-select'
+                        disableClearable
+                        options={policies}
+                        value={selectedPolicy}
+                        onChange={(e, value) => {
+                            this.setState({ selectedPolicy: value });
+                        }}
+                        style={{ width: 150 }}
+                        renderInput={(params) => (<TextField size='small' variant='standard' {...params} />)}
+                        renderOption={(props, policy) => (
+                            <MenuItem
+                                {...props}
+                                value={policy}
+                                key={policy}
+                                id={'policy-select-' + policy}
+                            >
+                                {policy}
+                            </MenuItem>
+                        )}
+                    />
                     <ScopeValidation
                         resourcePath={resourcePaths.SUBSCRIPTIONS}
                         resourceMethod={resourceMethods.POST}
@@ -187,15 +126,9 @@ class SubscriptionPolicySelectLegacy extends React.Component {
                             variant='contained'
                             size='small'
                             color='grey'
-                            className={isFederatedApi
-                                ? `${classes.buttonGap} ${classes.federatedButton}`
-                                : classes.buttonGap}
+                            className={classes.buttonGap}
                             onClick={() => {
-                                if (isFederatedApi) {
-                                    this.openFederatedOptionsDialog();
-                                } else {
-                                    handleSubscribe(applicationId, apiId, selectedPolicy);
-                                }
+                                handleSubscribe(applicationId, apiId, selectedPolicy);
                             }}
                             id={'policy-subscribe-btn-' + apiId}
                         >
@@ -205,69 +138,6 @@ class SubscriptionPolicySelectLegacy extends React.Component {
                             />
                         </Button>
                     </ScopeValidation>
-                    {isFederatedApi && (
-                        <Dialog open={optionsDialogOpen} onClose={this.closeFederatedOptionsDialog} maxWidth='sm' fullWidth>
-                            <DialogTitle>
-                                <FormattedMessage
-                                    id='Applications.Details.Subscriptions.federated.options.title'
-                                    defaultMessage='Select Subscription Options'
-                                />
-                            </DialogTitle>
-                            <DialogContent>
-                                {optionsLoading && <CircularProgress size={20} />}
-                                {!optionsLoading && hasOptions && React.createElement(optionsRenderer, {
-                                    body: subscriptionOptions.body,
-                                    selectedOption,
-                                    onSelect: (value) => this.setState({ selectedOption: value }),
-                                })}
-                                {!optionsLoading && !hasOptions && (
-                                    <Typography variant='body2'>
-                                        <FormattedMessage
-                                            id='Applications.Details.Subscriptions.federated.options.none'
-                                            defaultMessage='No additional subscription options are required.'
-                                        />
-                                    </Typography>
-                                )}
-                                {!optionsLoading && requiresSelection && (
-                                    <Typography variant='caption' color='error'>
-                                        <FormattedMessage
-                                            id='Applications.Details.Subscriptions.select.subscription.option'
-                                            defaultMessage='Select a subscription option to continue.'
-                                        />
-                                    </Typography>
-                                )}
-                            </DialogContent>
-                            <DialogActions>
-                                <Button onClick={this.closeFederatedOptionsDialog} color='grey'>
-                                    <FormattedMessage
-                                        id='Applications.Details.Subscriptions.cancel'
-                                        defaultMessage='Cancel'
-                                    />
-                                </Button>
-                                <Button
-                                    variant='contained'
-                                    color='primary'
-                                    onClick={() => {
-                                        let wrappedSelectedOption = null;
-                                        if (selectedOption && subscriptionOptions) {
-                                            wrappedSelectedOption = JSON.stringify({
-                                                schemaName: subscriptionOptions.schemaName,
-                                                body: selectedOption,
-                                            });
-                                        }
-                                        handleSubscribe(applicationId, apiId, null, wrappedSelectedOption, true);
-                                        this.closeFederatedOptionsDialog();
-                                    }}
-                                    disabled={optionsLoading || requiresSelection}
-                                >
-                                    <FormattedMessage
-                                        defaultMessage='Subscribe'
-                                        id='Apis.Listing.SubscriptionPolicySelect.subscribe'
-                                    />
-                                </Button>
-                            </DialogActions>
-                        </Dialog>
-                    )}
                 </Root>
             )
         );
@@ -280,16 +150,11 @@ SubscriptionPolicySelectLegacy.propTypes = {
     apiId: PropTypes.string.isRequired,
     handleSubscribe: PropTypes.func.isRequired,
     applicationId: PropTypes.string.isRequired,
-    isFederatedApi: PropTypes.bool,
-};
-
-SubscriptionPolicySelectLegacy.defaultProps = {
-    isFederatedApi: false,
 };
 
 function SubscriptionPolicySelect(props) {
     const {
-        key, policies, apiId, handleSubscribe, applicationId, isFederatedApi,
+        key, policies, apiId, handleSubscribe, applicationId,
     } = props;
     const theme = useTheme();
     return (
@@ -299,7 +164,6 @@ function SubscriptionPolicySelect(props) {
             apiId={apiId}
             handleSubscribe={handleSubscribe}
             applicationId={applicationId}
-            isFederatedApi={isFederatedApi}
             theme={theme}
         />
     );

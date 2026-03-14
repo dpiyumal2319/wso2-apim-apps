@@ -42,7 +42,6 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AdvertiseDetailsPanel from 'AppComponents/Shared/ApiTryOut/AdvertiseDetailsPanel';
-import FederatedDetailsPanel from 'AppComponents/Shared/ApiTryOut/FederatedDetailsPanel';
 import Progress from '../Progress';
 import Api from '../../../data/api';
 import Application from '../../../data/Application';
@@ -60,7 +59,6 @@ const classes = {
     grid: `${PREFIX}-grid`,
     tryoutHeading: `${PREFIX}-tryoutHeading`,
     genKeyButton: `${PREFIX}-genKeyButton`,
-    deleteButton: `${PREFIX}-deleteButton`,
     gatewayEnvironment: `${PREFIX}-gatewayEnvironment`,
     categoryHeading: `${PREFIX}-categoryHeading`,
     tooltip: `${PREFIX}-tooltip`,
@@ -116,25 +114,6 @@ const Root = styled('div')((
         '&:disabled': {
             cursor: 'not-allowed',
             background: theme.palette.grey[50],
-        },
-    },
-
-
-    [`& .${classes.deleteButton}`]: {
-        borderColor: theme.palette.error.main,
-        color: theme.palette.error.main,
-        width: theme.spacing(20),
-        height: theme.spacing(5),
-        marginTop: theme.spacing(2.5),
-        marginLeft: theme.spacing(2),
-        '&:hover': {
-            borderColor: theme.palette.error.dark,
-            backgroundColor: theme.palette.error.light + '10', // subtle background on hover
-        },
-        '&:disabled': {
-            cursor: 'not-allowed',
-            borderColor: theme.palette.grey[300],
-            color: theme.palette.grey[400],
         },
     },
 
@@ -215,7 +194,6 @@ function TryOutController(props) {
     const user = AuthManager.getUser();
     const isSubValidationDisabled = api.tiers && api.tiers.length === 1
             && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
-    const showClassicTryOutAuth = props.showClassicTryOutAuth === true;
 
     const handleAccessTokenChange = ({ newAccessToken }) => {
         if (onConfigChange) {
@@ -457,9 +435,6 @@ function TryOutController(props) {
      * @memberof TryOutController
      */
     function updateApplication() {
-        if (api.gatewayVendor && api.gatewayVendor !== 'wso2') {
-            return;
-        }
         if (api.lifeCycleStatus) {
             let accessToken;
             let keyType;
@@ -867,8 +842,8 @@ function TryOutController(props) {
                         )}
                         </Grid>
                     </Box>
-                    {((!api.advertiseInfo || !api.advertiseInfo.advertised)
-                        && ((api.gatewayVendor === 'wso2' || !api.gatewayVendor) || showClassicTryOutAuth)) ? (
+                    {((!api.advertiseInfo || !api.advertiseInfo.advertised) 
+                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor)) ? (
                         <Box display='block' justifyContent='center'>
                             <Grid x={8} md={6} className={classes.tokenType} item>
                                 {securitySchemeType === 'BASIC' && (
@@ -1030,23 +1005,16 @@ function TryOutController(props) {
                                 )}
                             </Grid>
                         </Box>
-                    ) : (api.gatewayVendor && api.gatewayVendor !== 'wso2' && !showClassicTryOutAuth
-                        && (!api.advertiseInfo || !api.advertiseInfo.advertised)) ? (
-                            <FederatedDetailsPanel
-                                classes={classes}
-                                setAdvAuthHeader={setAdvAuthHeader}
-                                setAdvAuthHeaderValue={setAdvAuthHeaderValue}
-                            />
-                        ) : (
-                            <AdvertiseDetailsPanel
-                                classes={classes}
-                                advAuthHeader={advAuthHeader}
-                                advAuthHeaderValue={advAuthHeaderValue}
-                                handleChanges={handleChanges}
-                                selectedEndpoint={selectedEndpoint}
-                                api={api}
-                            />
-                        )}
+                    ) : (
+                        <AdvertiseDetailsPanel
+                            classes={classes}
+                            advAuthHeader={advAuthHeader}
+                            advAuthHeaderValue={advAuthHeaderValue}
+                            handleChanges={handleChanges}
+                            selectedEndpoint={selectedEndpoint}
+                            api={api}
+                        />
+                    )}
                     {(!api.advertiseInfo || !api.advertiseInfo.advertised) 
                         && (api.gatewayVendor === 'wso2' || !api.gatewayVendor) && (
                         <Box display='flex' justifyContent='center' className={classes.gatewayEnvironment}>

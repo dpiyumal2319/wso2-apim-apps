@@ -216,11 +216,6 @@ class ApiConsole extends React.Component {
                         defaultSecurityScheme = apiData.securityScheme.includes('oauth2') ? 'OAUTH' : 'BASIC';
                     }
                 }
-                if (apiData.gatewayVendor && apiData.gatewayVendor !== 'wso2'
-                    && this.context.subscriptionSupportConfigured === false) {
-                    // No curated federated config is available yet. Fall back to the classic token input mode.
-                    defaultSecurityScheme = 'OAUTH';
-                }
 
                 this.setState({
                     api: apiData,
@@ -427,7 +422,7 @@ class ApiConsole extends React.Component {
                 })
                 .then((appKeys) => {
                     if (appKeys.get(selectedKeyManager)
-                        && appKeys.get(selectedKeyManager).keyType === selectedKeyType) {
+                    && appKeys.get(selectedKeyManager).keyType === selectedKeyType) {
                         ({ accessToken } = appKeys.get(selectedKeyManager).token);
                     }
                     if (appKeys.get(selectedKeyManager).keyType === 'PRODUCTION') {
@@ -517,8 +512,6 @@ class ApiConsole extends React.Component {
         const downloadSwagger = JSON.stringify({ ...swagger });
         const downloadLink = 'data:text/json;charset=utf-8, ' + encodeURIComponent(downloadSwagger);
         const fileName = 'swagger.json';
-        const showClassicTryOutAuth = api && api.gatewayVendor && api.gatewayVendor !== 'wso2'
-            && this.context.subscriptionSupportConfigured === false;
 
         if (api == null || swagger == null) {
             return <Progress />;
@@ -533,11 +526,6 @@ class ApiConsole extends React.Component {
             if (isApiKeyEnabled && securitySchemeType === 'API-KEY') {
                 authorizationHeader = api.apiKeyHeader ? api.apiKeyHeader : 'ApiKey';
             }
-        }
-
-        // Handle federated APIs - use advAuthHeader from FederatedDetailsPanel
-        if (api.gatewayVendor && api.gatewayVendor !== 'wso2' && !api.advertiseInfo?.advertised) {
-            authorizationHeader = advAuthHeader || 'Authorization';
         }
 
         let swaggerSpec = swagger;
@@ -570,8 +558,7 @@ class ApiConsole extends React.Component {
                 <Paper className={classes.paper}>
                     <Grid container className={classes.grid}>
                         {!user && (!api.advertiseInfo || !api.advertiseInfo.advertised)
-                            && (api.gatewayVendor && api.gatewayVendor !== 'wso2')
-                            && this.context.subscriptionStatus !== 'OPEN' && (
+                            && (api.gatewayVendor && api.gatewayVendor !== 'wso2') && (
                             <Grid item md={6}>
                                 <Paper className={classes.userNotificationPaper}>
                                     <Typography variant='h5' component='h3'>
@@ -583,8 +570,8 @@ class ApiConsole extends React.Component {
                                         <FormattedMessage
                                             id='api.console.require.access.token'
                                             defaultMessage={'You need an access token to try the API. Please log '
-                                                + 'in and subscribe to the API to generate an access token. If you already '
-                                                + 'have an access token, please provide it below.'}
+                                            + 'in and subscribe to the API to generate an access token. If you already '
+                                            + 'have an access token, please provide it below.'}
                                         />
                                     </Typography>
                                 </Paper>
@@ -626,7 +613,6 @@ class ApiConsole extends React.Component {
                             selectedEndpoint={selectedEndpoint}
                             api={this.state.api}
                             URLs={null}
-                            showClassicTryOutAuth={showClassicTryOutAuth}
                         />
                     </Grid>
 

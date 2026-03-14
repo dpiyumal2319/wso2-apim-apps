@@ -412,7 +412,7 @@ class Credentials extends React.Component {
     render() {
         const { intl } = this.props;
         const {
-            api, updateSubscriptionData, applicationsAvailable, subscribedApplications, subscriptionStatus,
+            api, updateSubscriptionData, applicationsAvailable, subscribedApplications,
         } = this.context;
         const {
             selectedKeyType,
@@ -423,7 +423,6 @@ class Credentials extends React.Component {
             hashEnabled,
             isSubscribing,
         } = this.state;
-        const isFederated = api.gatewayVendor && api.gatewayVendor !== 'wso2';
         const user = AuthManager.getUser();
         const isOnlyMutualSSL = api.securityScheme.includes('mutualssl') && !api.securityScheme.includes('oauth2')
         && !api.securityScheme.includes('api_key') && !api.securityScheme.includes('basic_auth');
@@ -432,21 +431,6 @@ class Credentials extends React.Component {
         const isSetAllorResidentKeyManagers = (api.keyManagers && api.keyManagers.includes('all'))
             || (api.keyManagers && api.keyManagers.includes('Resident Key Manager'));
         const renderCredentialInfo = () => {
-            // Safety net: For federated APIs - handle OPEN state
-            if (isFederated && subscriptionStatus === 'OPEN') {
-                return (
-                    <InlineMessage type='info' className={classes.dialogContainer}>
-                        <Typography component='p'>
-                            <FormattedMessage
-                                id='Apis.Details.Credentials.no.subscription.required'
-                                defaultMessage={'This {type} does not require subscription credentials. '
-                                        + 'You can invoke it directly without subscribing.'}
-                                values={{ type: getTypeToDisplay(api.type) }}
-                            />
-                        </Typography>
-                    </InlineMessage>
-                );
-            }
             if (isOnlyMutualSSL || isOnlyBasicAuth) {
                 return (
                     <InlineMessage type='info' className={classes.dialogContainer}>
@@ -517,25 +501,23 @@ class Credentials extends React.Component {
                                                     values={{ type: getTypeToDisplay(api.type) }}
                                                 />
                                             </Typography>
-                                            {!isFederated && (
-                                                <Button
-                                                    variant='contained'
-                                                    color='primary'
-                                                    className={classes.buttonElm}
-                                                    to={(isOnlyMutualSSL || isOnlyBasicAuth
-                                                        || !isSetAllorResidentKeyManagers) ? null
-                                                        : getBasePath(api.type) + api.id + '/credentials/wizard'}
-                                                    component={RouterLink}
-                                                    disabled={!api.isSubscriptionAvailable || isOnlyMutualSSL
-                                                        || isOnlyBasicAuth || !isSetAllorResidentKeyManagers}
-                                                >
-                                                    <FormattedMessage
-                                                        id={'Apis.Details.Credentials.'
-                                                        + 'SubscibeButtonPanel.subscribe.wizard.with.new.app'}
-                                                        defaultMessage='Subscription & Key Generation Wizard'
-                                                    />
-                                                </Button>
-                                            )}
+                                            <Button
+                                                variant='contained'
+                                                color='primary'
+                                                className={classes.buttonElm}
+                                                to={(isOnlyMutualSSL || isOnlyBasicAuth
+                                                    || !isSetAllorResidentKeyManagers) ? null
+                                                    : getBasePath(api.type) + api.id + '/credentials/wizard'}
+                                                component={RouterLink}
+                                                disabled={!api.isSubscriptionAvailable || isOnlyMutualSSL
+                                                    || isOnlyBasicAuth || !isSetAllorResidentKeyManagers}
+                                            >
+                                                <FormattedMessage
+                                                    id={'Apis.Details.Credentials.'
+                                                    + 'SubscibeButtonPanel.subscribe.wizard.with.new.app'}
+                                                    defaultMessage='Subscription & Key Generation Wizard'
+                                                />
+                                            </Button>
                                         </div>
                                     ) }
                                     {applicationsAvailable.length > 0 && (
@@ -607,15 +589,13 @@ class Credentials extends React.Component {
                                                     defaultMessage='Application Name'
                                                 />
                                             </th>
-                                            {!isFederated && (
-                                                <th className={classes.th}>
-                                                    <FormattedMessage
-                                                        id={'Apis.Details.Credentials.Credentials.api.'
-                                                        + 'credentials.subscribed.apps.tier'}
-                                                        defaultMessage='Throttling Tier'
-                                                    />
-                                                </th>
-                                            )}
+                                            <th className={classes.th}>
+                                                <FormattedMessage
+                                                    id={'Apis.Details.Credentials.Credentials.api.'
+                                                    + 'credentials.subscribed.apps.tier'}
+                                                    defaultMessage='Throttling Tier'
+                                                />
+                                            </th>
                                             <th className={classes.th}>
                                                 <FormattedMessage
                                                     id={'Apis.Details.Credentials.Credentials.'
@@ -644,10 +624,6 @@ class Credentials extends React.Component {
                                                 index={index}
                                                 applicationOwner={applicationOwner}
                                                 hashEnabled={hashEnabled}
-                                                isFederated={!!isFederated}
-                                                gatewayType={api.gatewayType}
-                                                apiId={api.id}
-                                                subscriptionStatus={subscriptionStatus}
                                             />
                                         ))}
                                     </table>
@@ -678,7 +654,7 @@ class Credentials extends React.Component {
                                         component='div'
                                         className={classes.titleSub}
                                     >
-                                        {!isFederated && applicationsAvailable.length > 0 && (
+                                        {applicationsAvailable.length > 0 && (
                                             <Link
                                                 to={(isOnlyMutualSSL || isOnlyBasicAuth
                                                     || !isSetAllorResidentKeyManagers) ? null

@@ -172,10 +172,6 @@ const SubscriptionSection = ({
     entityNameColumn,
     ...otherProps
 }) => {
-    const showBusinessPlanColumn = !subscriptions || subscriptions.length === 0
-        || subscriptions.some((sub) => !sub?.apiInfo?.gatewayVendor
-            || sub.apiInfo.gatewayVendor.toLowerCase() === 'wso2');
-
     return (
         <Root {...otherProps}>
             <Box className={classes.sectionContainer}>
@@ -236,14 +232,12 @@ const SubscriptionSection = ({
                                                             defaultMessage='Lifecycle State'
                                                         />
                                                     </TableCell>
-                                                    {showBusinessPlanColumn && (
-                                                        <TableCell>
-                                                            <FormattedMessage
-                                                                id='Applications.Details.Subscriptions.business.plan'
-                                                                defaultMessage='Business Plan'
-                                                            />
-                                                        </TableCell>
-                                                    )}
+                                                    <TableCell>
+                                                        <FormattedMessage
+                                                            id='Applications.Details.Subscriptions.business.plan'
+                                                            defaultMessage='Business Plan'
+                                                        />
+                                                    </TableCell>
                                                     <TableCell>
                                                         <FormattedMessage
                                                             id='Applications.Details.Subscriptions.Status'
@@ -267,7 +261,6 @@ const SubscriptionSection = ({
                                                                 subscription={subscription}
                                                                 handleSubscriptionDelete={handleSubscriptionDelete}
                                                                 handleSubscriptionUpdate={handleSubscriptionUpdate}
-                                                                showBusinessPlanColumn={showBusinessPlanColumn}
                                                             />
                                                         );
                                                     })}

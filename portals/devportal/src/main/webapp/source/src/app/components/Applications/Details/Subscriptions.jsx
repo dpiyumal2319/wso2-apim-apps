@@ -472,14 +472,12 @@ class SubscriptionsBase extends React.Component {
      * @param {*} applicationId application id
      * @param {*} apiId api id
      * @param {*} policy policy
-     * @param {*} selectedOption wrapped selected option payload for federated subscriptions
-     * @param {*} isFederatedApi whether the selected API is federated
      * @memberof Subscriptions
      */
-    handleSubscribe(applicationId, apiId, policy, selectedOption = null, isFederatedApi = false) {
+    handleSubscribe(applicationId, apiId, policy) {
         const api = new Api();
         const { intl } = this.props;
-        if (!isFederatedApi && !policy) {
+        if (!policy) {
             Alert.error(intl.formatMessage({
                 id: 'Applications.Details.Subscriptions.select.a.subscription.policy',
                 defaultMessage: 'Select a subscription policy',
@@ -487,9 +485,7 @@ class SubscriptionsBase extends React.Component {
             return;
         }
 
-        const promisedSubscribe = isFederatedApi
-            ? api.createFederatedSubscriptionForApi(apiId, applicationId, selectedOption)
-            : api.subscribe(apiId, applicationId, policy);
+        const promisedSubscribe = api.subscribe(apiId, applicationId, policy);
         promisedSubscribe
             .then((response) => {
                 if (response.status !== 201) {
@@ -524,13 +520,6 @@ class SubscriptionsBase extends React.Component {
                 const { status } = error;
                 if (status === 401) {
                     this.setState({ isAuthorize: false });
-                }
-                if (status === 409) {
-                    Alert.error(intl.formatMessage({
-                        id: 'Applications.Details.Subscriptions.subscription.already.exists',
-                        defaultMessage: 'A subscription already exists for this API and application',
-                    }));
-                    return;
                 }
                 if (status === 403 && error.response.body) {
                     Alert.error(error.response.body.description);
@@ -780,7 +769,7 @@ class SubscriptionsBase extends React.Component {
                                         apisNotFound={apisNotFound}
                                         subscriptions={apiSubscriptions || []}
                                         applicationId={applicationId}
-                                        handleSubscribe={(...args) => this.handleSubscribe(...args)}
+                                        handleSubscribe={(appInner, api, policy) => this.handleSubscribe(appInner, api, policy)}
                                         searchText={searchText}
                                         entityType='API'
                                     />
@@ -876,7 +865,7 @@ class SubscriptionsBase extends React.Component {
                                         apisNotFound={apisNotFound}
                                         subscriptions={mcpSubscriptions || []}
                                         applicationId={applicationId}
-                                        handleSubscribe={(...args) => this.handleSubscribe(...args)}
+                                        handleSubscribe={(appInner, api, policy) => this.handleSubscribe(appInner, api, policy)}
                                         searchText={searchText}
                                         entityType='MCP'
                                     />
