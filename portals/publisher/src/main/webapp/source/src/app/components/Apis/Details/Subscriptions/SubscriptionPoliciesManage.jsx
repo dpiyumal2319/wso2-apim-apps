@@ -127,7 +127,7 @@ class SubscriptionPoliciesManage extends Component {
      */
     handleChange(event) {
         const { name, checked } = event.target;
-        const { setPolices, policies, subValidationDisablingAllowed } = this.props;
+        const { setPolices, policies, subValidationDisablingAllowed, allowEmptySelection } = this.props;
         const { isMutualSslOnly, isAsyncAPI, isApiKeyEnabled } = this.state;
         let newSelectedPolicies = [...policies];
         if (checked) {
@@ -138,8 +138,14 @@ class SubscriptionPoliciesManage extends Component {
             }
         } else {
             newSelectedPolicies = policies.filter((policy) => policy !== name);
-            if (subValidationDisablingAllowed
-                    && !isMutualSslOnly && !isApiKeyEnabled && newSelectedPolicies.length === 0) {
+            if (newSelectedPolicies.length === 0) {
+                if (allowEmptySelection) {
+                    setPolices(newSelectedPolicies);
+                    return;
+                }
+                if (!subValidationDisablingAllowed || isMutualSslOnly || isApiKeyEnabled) {
+                    return;
+                }
                 if (!isAsyncAPI) {
                     newSelectedPolicies.push(CONSTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
                 } else {
@@ -326,6 +332,11 @@ SubscriptionPoliciesManage.propTypes = {
     api: PropTypes.shape({ policies: PropTypes.arrayOf(PropTypes.shape({})) }).isRequired,
     setPolices: PropTypes.func.isRequired,
     policies: PropTypes.shape({}).isRequired,
+    allowEmptySelection: PropTypes.bool,
+};
+
+SubscriptionPoliciesManage.defaultProps = {
+    allowEmptySelection: false,
 };
 
 export default injectIntl((SubscriptionPoliciesManage));

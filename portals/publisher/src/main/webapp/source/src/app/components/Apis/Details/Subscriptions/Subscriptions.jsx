@@ -75,8 +75,8 @@ function Subscriptions(props) {
     const { updateAPI } = props;
     const restApi = new API();
     const [tenants, setTenants] = useState(null);
-    const [policies, setPolices] = useState({});
-    const [originalPolicies, setOriginalPolicies] = useState({});
+    const [policies, setPolices] = useState([]);
+    const [originalPolicies, setOriginalPolicies] = useState([]);
     const [availability, setAvailability] = useState({ subscriptionAvailability: api.subscriptionAvailability });
     const [tenantList, setTenantList] = useState(api.subscriptionAvailableTenants);
     const [subscriptions, setSubscriptions] = useState(null);
@@ -86,6 +86,18 @@ function Subscriptions(props) {
     const isSubValidationDisabled = api.policies && api.policies.length === 1 
     && api.policies[0].includes(CONSTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
     const typeToDisplay = getTypeToDisplay(api.apiType);
+    const gatewayType = api.gatewayType || 'wso2/synapse';
+    const gatewayFeatureSet = settings?.gatewayFeatureCatalog?.gatewayFeatures?.[gatewayType];
+    const subscriptionCapability = gatewayFeatureSet?.subscriptions;
+    const federatedSubscriptionlessSupported = !Array.isArray(subscriptionCapability)
+        && !!subscriptionCapability?.subscriptionless;
+    const isFederatedGateway = gatewayType !== 'wso2/synapse';
+    const isFederatedWithoutSubscriptionlessSupport = isFederatedGateway && !federatedSubscriptionlessSupported;
+    const isLegacyGatewayManaged = api.gatewayVendor === 'wso2' || api.gatewayType === 'solace';
+    const showSubscriptionConfigSections = isLegacyGatewayManaged || isFederatedGateway;
+    const subValidationDisablingAllowed = !!settings.allowSubscriptionValidationDisabling
+        && (!isFederatedGateway || federatedSubscriptionlessSupported);
+    const isInvalidFederatedPolicySelection = isFederatedWithoutSubscriptionlessSupport && policies.length === 0;
 
     const getAllowedScopes = () => {
         if (api.apiType && api.apiType.toUpperCase() === 'MCP') {
@@ -171,15 +183,33 @@ function Subscriptions(props) {
     }
     return (
         (<Root>
-            {(api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') &&
+            {showSubscriptionConfigSections &&
                 (
                     <SubscriptionPoliciesManage
                         api={api}
                         policies={policies}
                         setPolices={setPolices}
-                        subValidationDisablingAllowed={settings.allowSubscriptionValidationDisabling}
+                        subValidationDisablingAllowed={subValidationDisablingAllowed}
+                        allowEmptySelection={isFederatedWithoutSubscriptionlessSupport}
                     />
                 )}
+            {isInvalidFederatedPolicySelection && (
+                <Box mb={2} mt={2}>
+                    <MUIAlert severity='warning'>
+                        <AlertTitle>
+                            <FormattedMessage
+                                id='Apis.Details.Subscriptions.Subscriptions.federated.subscription.required.title'
+                                defaultMessage='Business plan selection required'
+                            />
+                        </AlertTitle>
+                        <FormattedMessage
+                            id='Apis.Details.Subscriptions.Subscriptions.federated.subscription.required.description'
+                            defaultMessage={'At least one business plan must be selected. This gateway does not'
+                                + ' support subscriptionless APIs.'}
+                        />
+                    </MUIAlert>
+                </Box>
+            )}
             {isSubValidationDisabled && (
                 <Box mb={2} mt={2}>
                     <MUIAlert severity='warning'>
@@ -205,7 +235,7 @@ function Subscriptions(props) {
                     setTenantList={setTenantList}
                 />
             )}
-            {(api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') && (
+            {showSubscriptionConfigSections && (
                 <Grid
                     container
                     direction='row'
@@ -218,7 +248,12 @@ function Subscriptions(props) {
                             type='submit'
                             variant='contained'
                             color='primary'
-                            disabled={updateInProgress || api.isRevision || isAccessRestricted()}
+                            disabled={
+                                updateInProgress
+                                || api.isRevision
+                                || isAccessRestricted()
+                                || isInvalidFederatedPolicySelection
+                            }
                             onClick={() => handleSubscriptionSave()}
                             id='subscriptions-save-btn'
                         >

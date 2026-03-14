@@ -145,8 +145,7 @@ export default function DevelopSectionMenu(props) {
     const hasClassicSubscriptions = Array.isArray(componentValidator?.subscriptions)
         ? componentValidator.subscriptions.includes('subscriptions')
         : !!componentValidator?.subscriptions?.supported;
-    const hasFederatedSubscriptions = !!componentValidator?.federatedSubscription;
-    const showSubscriptionsMenu = !isAPIProduct && (hasClassicSubscriptions || hasFederatedSubscriptions);
+    const showSubscriptionsMenu = !isAPIProduct && hasClassicSubscriptions;
 
     return (
         <Root className={classes.root}>

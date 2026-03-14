@@ -62,12 +62,6 @@ const MCPTryOut = lazy(() => import('./MCPTryOut/MCPTryOut' /* webpackChunkName:
 const Overview = lazy(() => import('./Overview' /* webpackChunkName: "APIOverview" */));
 const Documents = lazy(() => import('./Documents/Documents' /* webpackChunkName: "APIDocuments" */));
 const Credentials = lazy(() => import('./Credentials/Credentials' /* webpackChunkName: "APICredentials" */));
-const FederatedApiCredentials = lazy(() => import(
-    './Credentials/FederatedApiCredentials' /* webpackChunkName: "FederatedApiCredentials" */
-));
-const FederatedApiSubscriptions = lazy(() => import(
-    './Credentials/FederatedApiSubscriptions' /* webpackChunkName: "FederatedApiSubscriptions" */
-));
 const Comments = lazy(() => import('./Comments/Comments' /* webpackChunkName: "APIComments" */));
 const Sdk = lazy(() => import('./Sdk' /* webpackChunkName: "APISdk" */));
 const ApiKeys = lazy(() => import('./ApiKeys' /* webpackChunkName: "APIKeys" */));
@@ -131,24 +125,12 @@ const LoadableSwitch = withRouter((props) => {
                 {!isMCPServer && (
                     <Route
                         path={subscriptionsPath}
-                        render={(routeProps) => {
-                            const isFederated = api.gatewayVendor && api.gatewayVendor !== 'wso2';
-                            if (!isFederated) {
-                                return <Redirect to={`/apis/${entityUuid}/credentials`} />;
-                            }
-                            const isSubDisabled = api && api.tiers && api.tiers.length === 1
-                                && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
-                            if (isSubDisabled) {
-                                return <Redirect to={`/apis/${entityUuid}/credentials`} />;
-                            }
-                            return <FederatedApiSubscriptions {...routeProps} />;
-                        }}
+                        render={() => <Redirect to={`/apis/${entityUuid}/credentials`} />}
                     />
                 )}
                 <Route
                     path={credentialsPath}
-                    component={api.gatewayVendor && api.gatewayVendor !== 'wso2'
-                        ? FederatedApiCredentials : Credentials}
+                    component={Credentials}
                 />
                 {!isMCPServer && <Route path={apiKeysPath} component={ApiKeys} />}
                 {tryoutRoute}
@@ -377,37 +359,6 @@ class DetailsLegacy extends React.Component {
             promisedApi
                 .then((api) => {
                     this.setState({ api: api.body });
-
-                    // For federated APIs, fetch subscription support info
-                    if (api.body.gatewayVendor && api.body.gatewayVendor !== 'wso2') {
-                        const restApi = new Api();
-                        restApi.getApiSubscriptionSupport(api.body.id)
-                            .then((response) => {
-                                this.setState({
-                                    subscriptionStatus: response.body.subscriptionStatus,
-                                    subscriptionSupportConfigured: true,
-                                });
-                            })
-                            .catch((error) => {
-                                if (error.status === 404) {
-                                    // Publisher has not saved federation config yet.
-                                    // API console falls back to JWT; subscriptions/credentials pages show error.
-                                    this.setState({
-                                        subscriptionStatus: 'OPEN',
-                                        subscriptionSupportConfigured: false,
-                                    });
-                                } else {
-                                    console.error('Error fetching subscription support:', error);
-                                    this.setState({
-                                        subscriptionStatus: 'OPEN',
-                                        subscriptionSupportConfigured: null,
-                                    });
-                                }
-                            });
-                    } else {
-                        // WSO2 gateway - subscriptions work as usual
-                        this.setState({ subscriptionStatus: null });
-                    }
                 })
                 .catch((error) => {
                     const { status, response } = error;
@@ -496,8 +447,6 @@ class DetailsLegacy extends React.Component {
             breadcrumbDocument: '',
             tryOutExpanded: true,
             apiChatEnabled: false,
-            subscriptionStatus: null, // null = loading, 'OPEN' | 'SECURED'
-            subscriptionSupportConfigured: null, // null = unknown/loading, true = configured, false = 404 not configured
         };
         this.setDetailsAPI = this.setDetailsAPI.bind(this);
         this.api_uuid = this.props.match.params.apiUuid || this.props.match.params.serverUuid;
@@ -602,7 +551,7 @@ class DetailsLegacy extends React.Component {
         } = this.props;
         const user = AuthManager.getUser();
         const {
-            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled, subscriptionSupportConfigured,
+            api, notFound, open, breadcrumbDocument, tryOutExpanded, apiChatEnabled,
         } = this.state;
         const {
             custom: {
@@ -620,7 +569,6 @@ class DetailsLegacy extends React.Component {
         const globalStyle = 'body{ font-family: ' + theme.typography.fontFamily + '}';
         const isMCPServer = window.location.pathname.includes('/mcp-servers');
         const pathPrefix = (isMCPServer ? '/mcp-servers/' : '/apis/') + this.api_uuid + '/';
-        const isFederated = api && api.gatewayVendor && api.gatewayVendor !== 'wso2';
         if (!api && notFound) {
             return <ResourceNotFound />;
         }
@@ -630,7 +578,6 @@ class DetailsLegacy extends React.Component {
         const isAsyncApi = this.isAsyncAPI(api);
         const isSubValidationDisabled = api && api.tiers && api.tiers.length === 1
             && api.tiers[0].tierName.includes(CONSTANTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
-        const showFederatedCredentialPages = !isFederated || subscriptionSupportConfigured !== false;
 
         return api ? (
             <Root>
@@ -696,31 +643,10 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && (!isSubValidationDisabled || isFederated)
-                                && showFederatedCredentialPages && (
+                            {user && showCredentials && !isSubValidationDisabled && (
                                 <>
-                                    {isFederated && !isSubValidationDisabled && (
-                                        <LeftMenuItem
-                                            text={(
-                                                <FormattedMessage
-                                                    id='Apis.Details.index.subscriptions'
-                                                    defaultMessage='Subscriptions'
-                                                />
-                                            )}
-                                            route='subscriptions'
-                                            iconText='credentials'
-                                            to={pathPrefix + 'subscriptions'}
-                                            open={open}
-                                            id='left-menu-subscriptions'
-                                        />
-                                    )}
                                     <LeftMenuItem
-                                        text={isFederated ? (
-                                            <FormattedMessage
-                                                id='Apis.Details.index.apiCredentials'
-                                                defaultMessage='API Credentials'
-                                            />
-                                        ) : (
+                                        text={(
                                             <FormattedMessage
                                                 id='Apis.Details.index.subscriptions'
                                                 defaultMessage='Subscriptions'

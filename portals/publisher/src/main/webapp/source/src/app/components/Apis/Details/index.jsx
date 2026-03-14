@@ -77,7 +77,6 @@ import Properties from './Properties/Properties';
 import Monetization from './Monetization';
 import Policies from './Policies/Policies';
 import ExternalStores from './ExternalStores/ExternalStores';
-import FederationConfig from './FederationConfig/FederationConfig';
 import { APIProvider } from './components/ApiContext';
 import CreateNewVersion from './NewVersion/NewVersion';
 import ShareAPI from './ShareAPI/ShareAPI';
@@ -1296,28 +1295,12 @@ class Details extends Component {
                                             const hasClassicSubscriptions = Array.isArray(subscriptionCapability)
                                                 ? subscriptionCapability.includes('subscriptions')
                                                 : !!subscriptionCapability?.supported;
-
-                                            return hasClassicSubscriptions || (
-                                                !isAPIProduct && !!gatewayFeatureSet?.federatedSubscription
-                                            );
+                                            return hasClassicSubscriptions;
                                         })() &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}
-                                            render={(props) => {
-                                                const subSupported = !!settings.gatewayFeatureCatalog
-                                                    .gatewayFeatures[api.gatewayType]
-                                                    ?.federatedSubscription?.subcriptionSupport;
-                                                return !isAPIProduct
-                                                    && api.gatewayType && api.gatewayType !== 'wso2/synapse'
-                                                    ? (
-                                                        <FederationConfig
-                                                            {...props}
-                                                            api={api}
-                                                            subscriptionSupported={subSupported}
-                                                        />
-                                                    )
-                                                    : <Subscriptions {...props} api={api} updateAPI={this.updateAPI} />;
-                                            }}
+                                            render={(props) => <Subscriptions {...props} api={api}
+                                                updateAPI={this.updateAPI} />}
                                         />
                                     }
                                     <Route
