@@ -600,6 +600,10 @@ function TryOutController(props) {
             prefix = '';
         }
     }
+    const isWSO2Gateway = api.gatewayVendor === 'wso2' || !api.gatewayVendor;
+    const isFederatedApiKeyFlow = !isWSO2Gateway && isApiKeyEnabled;
+    const shouldShowSecuritySection = isWSO2Gateway || isFederatedApiKeyFlow;
+    const shouldShowTokenInputSection = isWSO2Gateway || isFederatedApiKeyFlow;
     const isPrototypedAPI = api.lifeCycleStatus && api.lifeCycleStatus.toLowerCase() === 'prototyped';
     const isPublished = api.lifeCycleStatus.toLowerCase() === 'published';
     const showSecurityType = isPublished || isPrototypedAPI;
@@ -631,7 +635,7 @@ function TryOutController(props) {
             <Grid x={12} md={6} className={classes.centerItems}>
                 <Box>
                     {securitySchemeType !== 'TEST' && (!api.advertiseInfo || !api.advertiseInfo.advertised) 
-                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor) && (
+                        && isWSO2Gateway && (
                         <>
                             <Box mb={1}>
                                 <Typography variant='body1'>
@@ -668,7 +672,7 @@ function TryOutController(props) {
                     )}
                     {((isApiKeyEnabled || isBasicAuthEnabled || isOAuthEnabled) && showSecurityType)
                         && (!api.advertiseInfo || !api.advertiseInfo.advertised) 
-                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor) && (
+                        && shouldShowSecuritySection && (
                         <>
                             <Typography variant='h5' component='h2' color='textPrimary' className={classes.categoryHeading}>
                                 <FormattedMessage
@@ -843,7 +847,7 @@ function TryOutController(props) {
                         </Grid>
                     </Box>
                     {((!api.advertiseInfo || !api.advertiseInfo.advertised) 
-                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor)) ? (
+                        && shouldShowTokenInputSection) ? (
                         <Box display='block' justifyContent='center'>
                             <Grid x={8} md={6} className={classes.tokenType} item>
                                 {securitySchemeType === 'BASIC' && (
@@ -1016,7 +1020,7 @@ function TryOutController(props) {
                         />
                     )}
                     {(!api.advertiseInfo || !api.advertiseInfo.advertised) 
-                        && (api.gatewayVendor === 'wso2' || !api.gatewayVendor) && (
+                        && shouldShowTokenInputSection && (
                         <Box display='flex' justifyContent='center' className={classes.gatewayEnvironment}>
                             <Grid xs={12} md={6} item>
                                 {(environments && environments.length > 0) && (
