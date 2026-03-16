@@ -650,7 +650,8 @@ class DetailsLegacy extends React.Component {
                                     />
                                 </>
                             )}
-                            {api && api.securityScheme && api.securityScheme.includes('api_key') && (
+                            {user && showCredentials && api && api.securityScheme
+                                && api.securityScheme.includes('api_key') && (
                                 <LeftMenuItem
                                     text={(
                                         <FormattedMessage
