@@ -632,8 +632,7 @@ class DetailsLegacy extends React.Component {
                                 open={open}
                                 id='left-menu-overview'
                             />
-                            {user && showCredentials && !isSubValidationDisabled
-                                && (api.gatewayVendor === 'wso2' || !api.gatewayVendor || api.gatewayType === 'solace') && (
+                            {user && showCredentials && !isSubValidationDisabled && (
                                 <>
 
                                     <LeftMenuItem
@@ -649,23 +648,23 @@ class DetailsLegacy extends React.Component {
                                         open={open}
                                         id='left-menu-credentials'
                                     />
-                                    {api && api.securityScheme && api.securityScheme.includes('api_key') && (
-                                        <LeftMenuItem
-                                            text={(
-                                                <FormattedMessage
-                                                    id='Apis.Details.index.api.keys'
-                                                    defaultMessage='API Keys'
-                                                />
-                                            )}
-                                            route='api-keys'
-                                            iconText='api-keys'
-                                            to={pathPrefix + 'api-keys'}
-                                            open={open}
-                                            id='left-menu-api-keys'
+                                </>
+                            )}
+                            {user && showCredentials && api && api.securityScheme
+                                && api.securityScheme.includes('api_key') && (
+                                <LeftMenuItem
+                                    text={(
+                                        <FormattedMessage
+                                            id='Apis.Details.index.api.keys'
+                                            defaultMessage='API Keys'
                                         />
                                     )}
-
-                                </>
+                                    route='api-keys'
+                                    iconText='api-keys'
+                                    to={pathPrefix + 'api-keys'}
+                                    open={open}
+                                    id='left-menu-api-keys'
+                                />
                             )}
                             {showTryout && (api.gatewayType !== 'wso2/apk'
                                 || (api.type === 'APIPRODUCT' && !api.gatewayVendor)) && api.gatewayType !== 'solace' && (
