@@ -43,6 +43,11 @@ import AddEditVhost from 'AppComponents/GatewayEnvironments/AddEditVhost';
 import GatewayConfiguration from 'AppComponents/GatewayEnvironments/GatewayConfiguration';
 import cloneDeep from 'lodash.clonedeep';
 import CircularProgress from '@mui/material/CircularProgress';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 
 const StyledSpan = styled('span')(({ theme }) => ({ color: theme.palette.error.dark }));
 
@@ -59,14 +64,26 @@ const StyledContentBase = styled(ContentBase)({
 
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
 
-const useStyles = styled(() => ({
-    chipInputBox: {
-        marginRight: '30px',
-        marginLeft: '10px',
-        marginTop: '10px',
-        marginBottom: '10px',
-    },
-}));
+const LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE = {
+    REQUESTCOUNTLIMIT: 'rest',
+    EVENTCOUNTLIMIT: 'async',
+    AIAPIQUOTALIMIT: 'ai-api',
+};
+const NON_SUBSCRIBABLE_LOCAL_POLICIES = new Set(['Unauthenticated']);
+const SUBSCRIPTIONLESS_LOCAL_POLICIES = new Set(['DefaultSubscriptionless', 'AsyncDefaultSubscriptionless']);
+
+const normalizeApiType = (apiType) => (apiType || '').toString().trim().toLowerCase();
+
+const resolveLocalPlanApiType = (policy) => {
+    const limitType = (policy?.defaultLimit?.type || '').toString().trim().toUpperCase();
+    return LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE[limitType] || 'other';
+};
+
+const isMappableLocalPolicy = (policy) => (
+    !!policy
+    && !!policy.policyName
+    && !NON_SUBSCRIBABLE_LOCAL_POLICIES.has(policy.policyName)
+);
 
 /**
  * Reducer
@@ -106,7 +123,6 @@ function reducer(state, { field, value }) {
  * @returns {JSX}.
  */
 function AddEditGWEnvironment(props) {
-    const classes = useStyles();
     const intl = useIntl();
     const { dataRow } = props;
 
@@ -118,6 +134,10 @@ function AddEditGWEnvironment(props) {
     const [supportedModes, setSupportedModes] = useState([]);
     const [validating, setValidating] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [tierMappings, setTierMappings] = useState([]);
+    const [remotePlans, setRemotePlans] = useState([]);
+    const [localTiers, setLocalTiers] = useState([]);
+    const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
     const { gatewayTypes } = settings;
 
     const createDefaultVhost = (currentGatewayType) => {
@@ -184,6 +204,9 @@ function AddEditGWEnvironment(props) {
                 };
                 setIsReadOnly(body.isReadOnly || false);
                 dispatch({ field: 'editDetails', value: newState });
+                if (body.tierMappings && body.tierMappings.length > 0) {
+                    setTierMappings(body.tierMappings);
+                }
             });
             setIsEditMode(true);
         } else {
@@ -223,6 +246,113 @@ function AddEditGWEnvironment(props) {
             config.supportedModes,
         );
     }, [gatewayType]);
+
+    // Load local subscription tiers for the plan mapping section
+    useEffect(() => {
+        new API().getSubscritionPolicyList().then((result) => {
+            const { body } = result;
+            if (body && body.list) {
+                setLocalTiers(body.list
+                    .filter((policy) => isMappableLocalPolicy(policy))
+                    .map((policy) => ({
+                        name: policy.policyName,
+                        displayName: policy.displayName || policy.policyName,
+                        apiType: resolveLocalPlanApiType(policy),
+                    })));
+            }
+        }).catch(() => {
+            // Non-critical; plan mapping section will show empty tier list
+        });
+    }, []);
+
+    const handleFetchRemotePlans = () => {
+        if (!id) return;
+        setLoadingRemotePlans(true);
+        new API().getEnvironmentRemotePlans(id).then((result) => {
+            const { body } = result;
+            setRemotePlans(body.list || []);
+        })
+            .catch((error) => {
+                const { response } = error;
+                if (response && response.body) {
+                    Alert.error(response.body.description);
+                } else {
+                    Alert.error(intl.formatMessage({
+                        id: 'GatewayEnvironments.PlanMapping.fetch.error',
+                        defaultMessage: 'Failed to fetch remote plans from the gateway.',
+                    }));
+                }
+            })
+            .finally(() => {
+                setLoadingRemotePlans(false);
+            });
+    };
+
+    const handleTierMappingChange = (localTierName, remotePlanReference) => {
+        setTierMappings((prev) => {
+            const existing = prev.filter((m) => m.localTierName !== localTierName);
+            if (remotePlanReference) {
+                return [...existing, { localTierName, remotePlanReference }];
+            }
+            return existing;
+        });
+    };
+
+    const getMappedPlanId = (localTierName) => {
+        const mapping = tierMappings.find((m) => m.localTierName === localTierName);
+        return mapping ? (mapping.remotePlanReference?.id || '') : '';
+    };
+
+    const gatewayConfig = settings.gatewayConfiguration
+        ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
+        : null;
+    const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
+    const isSubscriptionlessSupported = gatewayConfig?.subscriptionlessSupported === true;
+    const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
+        .map((apiType) => normalizeApiType(apiType))
+        .filter(Boolean);
+
+    const visibleLocalTiers = localTiers.filter((tier) => (
+        (supportedApiTypes.length === 0 || supportedApiTypes.includes(tier.apiType))
+        && (isSubscriptionlessSupported || !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name))
+    ));
+    const visibleLocalTierNames = new Set(visibleLocalTiers.map((tier) => tier.name));
+
+    const groupOrder = supportedApiTypes.length > 0
+        ? supportedApiTypes
+        : [...new Set(visibleLocalTiers.map((tier) => tier.apiType))];
+
+    const groupedLocalTiers = groupOrder
+        .map((apiType) => ({
+            apiType,
+            tiers: visibleLocalTiers.filter((tier) => tier.apiType === apiType),
+        }))
+        .filter((group) => group.tiers.length > 0);
+
+    const getLocalApiTypeLabel = (apiType) => {
+        switch (apiType) {
+            case 'rest':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.rest',
+                    defaultMessage: 'REST APIs',
+                });
+            case 'async':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.async',
+                    defaultMessage: 'Async APIs',
+                });
+            case 'ai-api':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.ai',
+                    defaultMessage: 'AI APIs',
+                });
+            default:
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.other',
+                    defaultMessage: 'Other APIs',
+                });
+        }
+    };
 
     let permissionType = '';
     if (permissions) {
@@ -569,16 +699,23 @@ function AddEditGWEnvironment(props) {
         });
 
         let promiseAPICall;
+        const filteredTierMappings = isPlanMappingSupported
+            ? tierMappings.filter((mapping) => (
+                !!mapping
+                && !!mapping.localTierName
+                && visibleLocalTierNames.has(mapping.localTierName)
+            ))
+            : [];
         if (id) {
             // assign the update promise to the promiseAPICall
             promiseAPICall = restApi.updateGatewayEnvironment(id, name.trim(), displayName, type, description,
                 gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
-                provider);
+                provider, filteredTierMappings);
         } else {
             // assign the create promise to the promiseAPICall
             promiseAPICall = restApi.addGatewayEnvironment(name.trim(), displayName, type, description,
                 gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
-                provider);
+                provider, filteredTierMappings);
             promiseAPICall
                 .then(() => {
                     return (intl.formatMessage({
@@ -1166,7 +1303,12 @@ function AddEditGWEnvironment(props) {
                                                 flexDirection='row'
                                                 alignItems='center'
                                                 margin='dense'
-                                                classes={{ root: classes.chipInputBox }}
+                                                sx={{
+                                                    marginRight: '30px',
+                                                    marginLeft: '10px',
+                                                    marginTop: '10px',
+                                                    marginBottom: '10px',
+                                                }}
                                             >
                                                 <MuiChipsInput
                                                     fullWidth
@@ -1287,6 +1429,187 @@ function AddEditGWEnvironment(props) {
                             />
                         </Box>
                     </Grid>
+                    {/* Plan Mapping Section - enabled only when gateway capability supports it */}
+                    {isPlanMappingSupported && (
+                        <>
+                            <Grid item xs={12}>
+                                <Box marginTop={2} marginBottom={2}>
+                                    <StyledHr />
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12} md={12} lg={3}>
+                                <Box display='flex' flexDirection='row' alignItems='center'>
+                                    <Box flex='1'>
+                                        <Typography color='inherit' variant='subtitle2' component='div'>
+                                            <FormattedMessage
+                                                id='GatewayEnvironments.PlanMapping.title'
+                                                defaultMessage='Plan Mapping'
+                                            />
+                                        </Typography>
+                                        <Typography color='inherit' variant='caption' component='p'>
+                                            <FormattedMessage
+                                                id='GatewayEnvironments.PlanMapping.description'
+                                                defaultMessage={'Map local WSO2 subscription'
+                                                + 'tiers to remote gateway plans.'}
+                                            />
+                                        </Typography>
+                                        <Typography color='inherit' variant='caption' component='p'>
+                                            <FormattedMessage
+                                                id='GatewayEnvironments.PlanMapping.subscribableOnly.description'
+                                                defaultMessage={'Only subscribable local plans are listed.'
+                                                    + ' Subscriptionless plans are'
+                                                    + ' shown only when the gateway supports them.'}
+                                            />
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12} md={12} lg={9}>
+                                <Box component='div' m={1}>
+                                    <Box display='flex' alignItems='center' mb={2}>
+                                        <Button
+                                            variant='outlined'
+                                            size='small'
+                                            onClick={handleFetchRemotePlans}
+                                            disabled={loadingRemotePlans || isReadOnly || !id}
+                                        >
+                                            {loadingRemotePlans ? (
+                                                <CircularProgress size={14} style={{ marginRight: 6 }} />
+                                            ) : null}
+                                            <FormattedMessage
+                                                id='GatewayEnvironments.PlanMapping.fetchPlans'
+                                                defaultMessage='Fetch Remote Plans'
+                                            />
+                                        </Button>
+                                        {!id && (
+                                            <Typography variant='caption' style={{ marginLeft: 12 }}>
+                                                <FormattedMessage
+                                                    id='GatewayEnvironments.PlanMapping.saveFirst'
+                                                    defaultMessage='Save the environment first to fetch remote plans.'
+                                                />
+                                            </Typography>
+                                        )}
+                                        {remotePlans.length > 0 && (
+                                            <Typography variant='caption' style={{ marginLeft: 12 }}>
+                                                <FormattedMessage
+                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
+                                                    defaultMessage='{count} remote plans loaded'
+                                                    values={{ count: remotePlans.length }}
+                                                />
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                    {groupedLocalTiers.length > 0 && (
+                                        <Table size='small'>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell>
+                                                        <FormattedMessage
+                                                            id='GatewayEnvironments.PlanMapping.localTier'
+                                                            defaultMessage='Local Tier'
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <FormattedMessage
+                                                            id='GatewayEnvironments.PlanMapping.remotePlan'
+                                                            defaultMessage='Remote Plan'
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {groupedLocalTiers.map((group) => (
+                                                    <React.Fragment key={group.apiType}>
+                                                        <TableRow>
+                                                            <TableCell colSpan={2}>
+                                                                <Typography variant='subtitle2'>
+                                                                    {getLocalApiTypeLabel(group.apiType)}
+                                                                </Typography>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {group.tiers.map((tier) => (
+                                                            <TableRow key={tier.name}>
+                                                                <TableCell>
+                                                                    <Typography variant='body2'>
+                                                                        {tier.displayName}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <FormControl
+                                                                        fullWidth
+                                                                        size='small'
+                                                                        disabled={isReadOnly}
+                                                                    >
+                                                                        <Select
+                                                                            value={getMappedPlanId(tier.name)}
+                                                                            displayEmpty
+                                                                            onChange={(e) => {
+                                                                                const plan = remotePlans.find(
+                                                                                    (p) => p.id === e.target.value,
+                                                                                );
+                                                                                handleTierMappingChange(
+                                                                                    tier.name,
+                                                                                    plan || null,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <MenuItem value=''>
+                                                                                <em>
+                                                                                    <FormattedMessage
+                                                                                        id={
+                                                                                            'GatewayEnvironments.'
+                                                                                            + 'PlanMapping.noMapping'
+                                                                                        }
+                                                                                        defaultMessage='No mapping'
+                                                                                    />
+                                                                                </em>
+                                                                            </MenuItem>
+                                                                            {remotePlans.map((plan) => (
+                                                                                <MenuItem key={plan.id} value={plan.id}>
+                                                                                    {plan.name}
+                                                                                </MenuItem>
+                                                                            ))}
+                                                                            {/*
+                                                                             * Show saved mapping
+                                                                             * label when remote plans
+                                                                             * not yet fetched.
+                                                                             */}
+                                                                            {remotePlans.length === 0
+                                                                                && getMappedPlanId(tier.name) && (
+                                                                                <MenuItem
+                                                                                    key={getMappedPlanId(tier.name)}
+                                                                                    value={getMappedPlanId(tier.name)}
+                                                                                >
+                                                                                    {tierMappings.find(
+                                                                                        (m) => m.localTierName
+                                                                                        === tier.name,
+                                                                                    )?.remotePlanReference?.name
+                                                                                    || getMappedPlanId(tier.name)}
+                                                                                </MenuItem>
+                                                                            )}
+                                                                        </Select>
+                                                                    </FormControl>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </React.Fragment>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                    {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
+                                        <Typography variant='caption'>
+                                            <FormattedMessage
+                                                id='GatewayEnvironments.PlanMapping.noCompatibleLocalPlans'
+                                                defaultMessage={'No local subscription plans match the'
+                                                    + ' supported API types of this gateway.'}
+                                            />
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Grid>
+                        </>
+                    )}
                     <Grid item xs={12}>
                         <Box marginTop={2} marginBottom={2}>
                             <StyledHr />

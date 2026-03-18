@@ -22,6 +22,7 @@ import {
     Box,
     Button,
     Chip,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -68,6 +69,7 @@ export default function ApiKeyListing() {
     const [revokeErrorOpen, setRevokeErrorOpen] = React.useState(false);
     const [revokeErrorMessage, setRevokeErrorMessage] = React.useState('');
     const [selectedKeyForRevoke, setSelectedKeyForRevoke] = React.useState(null);
+    const [isRevoking, setIsRevoking] = React.useState(false);
 
     // Subscribed applications state
     const [subscribedApps, setSubscribedApps] = React.useState([]);
@@ -135,6 +137,9 @@ export default function ApiKeyListing() {
     const {
         handleOpenAssociationModal,
         handleRemoveAssociation,
+        isAssociating,
+        isDissociating,
+        selectedKeyForDissociate,
         renderDialogs: renderAssociationDialogs,
     } = ApiKeyAssociation(apiUUID, refreshApiKeys, subscribedApps);
 
@@ -172,10 +177,12 @@ export default function ApiKeyListing() {
 
     const handleConfirmRevoke = () => {
         setRevokeConfirmOpen(false);
+        setIsRevoking(true);
         console.log('Revoking key:', selectedKeyForRevoke);
         const restApi = new API();
         restApi.revokeAPIBoundAPIKey(apiUUID, selectedKeyForRevoke.keyUUID)
             .then(() => {
+                setIsRevoking(false);
                 setRevokeSuccessOpen(true);
                 // Refresh the API keys list
                 return restApi.getApiApiKeys(apiUUID);
@@ -186,6 +193,7 @@ export default function ApiKeyListing() {
             })
             .catch((error) => {
                 console.error('Error revoking key:', error);
+                setIsRevoking(false);
                 setRevokeErrorMessage(
                     error.message || intl.formatMessage({
                         id: 'Apis.Details.APIKeys.ApiKeyListing.error.revokeFailed',
@@ -340,6 +348,7 @@ export default function ApiKeyListing() {
                                     size='small'
                                     startIcon={<Link />}
                                     onClick={() => handleOpenAssociationModal(keyData)}
+                                    disabled={isAssociating}
                                 >
                                     <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.button.associate' defaultMessage='Associate' />
                                 </Button>
@@ -348,13 +357,22 @@ export default function ApiKeyListing() {
                                     variant='outlined'
                                     size='small'
                                     color='error'
-                                    startIcon={<LinkOff />}
+                                    startIcon={isDissociating && selectedKeyForDissociate?.keyUUID
+                                        === keyData.keyUUID ? <CircularProgress size={16} /> : <LinkOff />}
                                     onClick={() => handleRemoveAssociation(keyData)}
+                                    disabled={isDissociating && selectedKeyForDissociate?.keyUUID === keyData.keyUUID}
                                 >
-                                    <FormattedMessage
-                                        id='Apis.Details.APIKeys.ApiKeyListing.button.removeAssociation'
-                                        defaultMessage='Remove Association'
-                                    />
+                                    {isDissociating && selectedKeyForDissociate?.keyUUID === keyData.keyUUID ? (
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.removingAssociation'
+                                            defaultMessage='Removing...'
+                                        />
+                                    ) : (
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.removeAssociation'
+                                            defaultMessage='Remove Association'
+                                        />
+                                    )}
                                 </Button>
                             )}
                             <Button
@@ -363,8 +381,22 @@ export default function ApiKeyListing() {
                                 color='error'
                                 startIcon={<Block />}
                                 onClick={() => handleRevokeKey(keyData)}
+                                disabled={isRevoking && selectedKeyForRevoke?.keyUUID === keyData.keyUUID}
                             >
-                                <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.button.revoke' defaultMessage='Revoke' />
+                                {isRevoking && selectedKeyForRevoke?.keyUUID === keyData.keyUUID ? (
+                                    <>
+                                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.revoking'
+                                            defaultMessage='Revoking...'
+                                        />
+                                    </>
+                                ) : (
+                                    <FormattedMessage
+                                        id='Apis.Details.APIKeys.ApiKeyListing.button.revoke'
+                                        defaultMessage='Revoke'
+                                    />
+                                )}
                             </Button>
                             {renderRegenerateButton(keyData)}
                         </Stack>
@@ -814,6 +846,7 @@ export default function ApiKeyListing() {
                                 onClick={handleGenerateKey}
                                 variant='contained'
                                 disabled={!displayName.trim() || isGenerating}
+                                startIcon={isGenerating ? <CircularProgress size={16} color='inherit' /> : null}
                             >
                                 {isGenerating
                                     ? (
