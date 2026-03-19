@@ -87,6 +87,26 @@ function Subscriptions(props) {
     && api.policies[0].includes(CONSTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
     const typeToDisplay = getTypeToDisplay(api.apiType);
 
+    // Check if the current gateway supports subscription management
+    const isSubscriptionManagementSupported = () => {
+        // Native gateways (wso2, solace) always support subscription management
+        if (api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') {
+            return true;
+        }
+        // For external gateways, check the feature catalog
+        const gatewayType = api.gatewayType || 'wso2/synapse';
+        const gatewayFeatures = settings?.gatewayFeatureCatalog?.gatewayFeatures?.[gatewayType];
+        if (!gatewayFeatures) {
+            return false;
+        }
+        const subscriptionsConfig = gatewayFeatures.subscriptions;
+        // Handle both array (legacy) and object (new schema) formats
+        if (Array.isArray(subscriptionsConfig)) {
+            return subscriptionsConfig.includes('subscriptions');
+        }
+        return subscriptionsConfig?.supported === true;
+    };
+
     const getAllowedScopes = () => {
         if (api.apiType && api.apiType.toUpperCase() === 'MCP') {
             return ['apim:mcp_server_create', 'apim:mcp_server_manage', 'apim:mcp_server_publish'];
@@ -171,7 +191,7 @@ function Subscriptions(props) {
     }
     return (
         (<Root>
-            {(api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') &&
+            {isSubscriptionManagementSupported() &&
                 (
                     <SubscriptionPoliciesManage
                         api={api}
@@ -205,7 +225,7 @@ function Subscriptions(props) {
                     setTenantList={setTenantList}
                 />
             )}
-            {(api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') && (
+            {isSubscriptionManagementSupported() && (
                 <Grid
                     container
                     direction='row'
