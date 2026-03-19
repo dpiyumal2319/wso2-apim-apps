@@ -1285,9 +1285,15 @@ class Details extends Component {
                                         path={Details.subPaths.DOCUMENTS_MCP}
                                         render={(props) => <Documents {...props} api={api} />}
                                     />
-                                    {settings && settings.gatewayFeatureCatalog
-                                        .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
-                                        .subscriptions.includes("subscriptions") &&
+                                    {settings && (() => {
+                                        const { gatewayFeatureCatalog } = settings;
+                                        const gatewayType = api.gatewayType || 'wso2/synapse';
+                                        const { subscriptions } = gatewayFeatureCatalog.gatewayFeatures[gatewayType];
+                                        // Handle both array (legacy) and object (new schema) formats
+                                        return Array.isArray(subscriptions)
+                                            ? subscriptions.includes("subscriptions")
+                                            : subscriptions?.supported;
+                                    })() &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}
                                             render={(props) => <Subscriptions {...props} api={api}
