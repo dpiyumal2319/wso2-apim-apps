@@ -138,6 +138,8 @@ function AddEditGWEnvironment(props) {
     const [remotePlans, setRemotePlans] = useState([]);
     const [localTiers, setLocalTiers] = useState([]);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
+    const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
+    const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
     const { gatewayTypes } = settings;
 
     const createDefaultVhost = (currentGatewayType) => {
@@ -206,10 +208,15 @@ function AddEditGWEnvironment(props) {
                 dispatch({ field: 'editDetails', value: newState });
                 if (body.tierMappings && body.tierMappings.length > 0) {
                     setTierMappings(body.tierMappings);
+                    setHasInitializedDefaultMappings(true);
+                } else {
+                    setTierMappings([]);
                 }
             });
             setIsEditMode(true);
         } else {
+            setIsEditMode(false);
+            setTierMappings([]);
             setInitialState({
                 name: '',
                 displayName: '',
@@ -223,9 +230,10 @@ function AddEditGWEnvironment(props) {
                     roles: [],
                     permissionType: 'PUBLIC',
                 },
+                additionalProperties: {},
             });
         }
-    }, []);
+    }, [id]);
 
     useEffect(() => {
         if (permissions && permissions.roles) {
@@ -265,30 +273,14 @@ function AddEditGWEnvironment(props) {
         });
     }, []);
 
-    const handleFetchRemotePlans = () => {
-        if (!id) return;
-        setLoadingRemotePlans(true);
-        new API().getEnvironmentRemotePlans(id).then((result) => {
-            const { body } = result;
-            setRemotePlans(body.list || []);
-        })
-            .catch((error) => {
-                const { response } = error;
-                if (response && response.body) {
-                    Alert.error(response.body.description);
-                } else {
-                    Alert.error(intl.formatMessage({
-                        id: 'GatewayEnvironments.PlanMapping.fetch.error',
-                        defaultMessage: 'Failed to fetch remote plans from the gateway.',
-                    }));
-                }
-            })
-            .finally(() => {
-                setLoadingRemotePlans(false);
-            });
-    };
+    useEffect(() => {
+        setHasInitializedDefaultMappings(false);
+        setHasUserEditedTierMappings(false);
+    }, [id]);
 
     const handleTierMappingChange = (localTierName, remotePlanReference) => {
+        setHasUserEditedTierMappings(true);
+        setHasInitializedDefaultMappings(true);
         setTierMappings((prev) => {
             const existing = prev.filter((m) => m.localTierName !== localTierName);
             if (remotePlanReference) {
@@ -328,6 +320,74 @@ function AddEditGWEnvironment(props) {
             tiers: visibleLocalTiers.filter((tier) => tier.apiType === apiType),
         }))
         .filter((group) => group.tiers.length > 0);
+
+    useEffect(() => {
+        if (!id || !isPlanMappingSupported) {
+            setRemotePlans([]);
+            setLoadingRemotePlans(false);
+            return () => {};
+        }
+
+        let isCancelled = false;
+        setLoadingRemotePlans(true);
+        new API().getEnvironmentRemotePlans(id).then((result) => {
+            if (!isCancelled) {
+                const { body } = result;
+                setRemotePlans(body.list || []);
+            }
+        })
+            .catch((error) => {
+                if (!isCancelled) {
+                    const { response } = error;
+                    if (response && response.body) {
+                        Alert.error(response.body.description);
+                    } else {
+                        Alert.error(intl.formatMessage({
+                            id: 'GatewayEnvironments.PlanMapping.fetch.error',
+                            defaultMessage: 'Failed to fetch remote plans from the gateway.',
+                        }));
+                    }
+                }
+            })
+            .finally(() => {
+                if (!isCancelled) {
+                    setLoadingRemotePlans(false);
+                }
+            });
+        return () => {
+            isCancelled = true;
+        };
+    }, [id, intl, isPlanMappingSupported]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
+            return;
+        }
+        if (remotePlans.length === 0 || visibleLocalTiers.length === 0) {
+            return;
+        }
+        const defaultRemotePlan = remotePlans[0];
+        setTierMappings((prev) => {
+            const existingTierNames = new Set(prev.map((mapping) => mapping.localTierName));
+            const defaultMappings = visibleLocalTiers
+                .filter((tier) => !existingTierNames.has(tier.name))
+                .map((tier) => ({
+                    localTierName: tier.name,
+                    remotePlanReference: defaultRemotePlan,
+                }));
+            if (defaultMappings.length === 0) {
+                return prev;
+            }
+            return [...prev, ...defaultMappings];
+        });
+        setHasInitializedDefaultMappings(true);
+    }, [
+        isPlanMappingSupported,
+        hasInitializedDefaultMappings,
+        hasUserEditedTierMappings,
+        remotePlans,
+        visibleLocalTiers,
+    ]);
 
     const getLocalApiTypeLabel = (apiType) => {
         switch (apiType) {
@@ -698,7 +758,6 @@ function AddEditGWEnvironment(props) {
             additionalPropertiesArrayDTO.push({ key, value: state.additionalProperties[key] });
         });
 
-        let promiseAPICall;
         const filteredTierMappings = isPlanMappingSupported
             ? tierMappings.filter((mapping) => (
                 !!mapping
@@ -706,26 +765,15 @@ function AddEditGWEnvironment(props) {
                 && visibleLocalTierNames.has(mapping.localTierName)
             ))
             : [];
-        if (id) {
-            // assign the update promise to the promiseAPICall
-            promiseAPICall = restApi.updateGatewayEnvironment(id, name.trim(), displayName, type, description,
+        const promiseAPICall = id
+            ? restApi.updateGatewayEnvironment(id, name.trim(), displayName, type, description,
+                gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
+                provider, filteredTierMappings)
+            : restApi.addGatewayEnvironment(name.trim(), displayName, type, description,
                 gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
                 provider, filteredTierMappings);
-        } else {
-            // assign the create promise to the promiseAPICall
-            promiseAPICall = restApi.addGatewayEnvironment(name.trim(), displayName, type, description,
-                gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
-                provider, filteredTierMappings);
-            promiseAPICall
-                .then(() => {
-                    return (intl.formatMessage({
-                        id: 'Environment.add.success',
-                        defaultMessage: 'Gateway Environment added successfully.',
-                    }));
-                });
-        }
 
-        promiseAPICall.then(() => {
+        promiseAPICall.then((result) => {
             if (id) {
                 Alert.success(`${name} ${intl.formatMessage({
                     id: 'Environment.edit.success',
@@ -738,6 +786,10 @@ function AddEditGWEnvironment(props) {
                 })}`);
             }
             setSaving(false);
+            if (!id && result?.body?.id) {
+                history.replace(`/settings/environments/${result.body.id}`);
+                return;
+            }
             history.push('/settings/environments/');
         }).catch((error) => {
             const { response } = error;
@@ -1467,30 +1519,11 @@ function AddEditGWEnvironment(props) {
                             <Grid item xs={12} md={12} lg={9}>
                                 <Box component='div' m={1}>
                                     <Box display='flex' alignItems='center' mb={2}>
-                                        <Button
-                                            variant='outlined'
-                                            size='small'
-                                            onClick={handleFetchRemotePlans}
-                                            disabled={loadingRemotePlans || isReadOnly || !id}
-                                        >
-                                            {loadingRemotePlans ? (
-                                                <CircularProgress size={14} style={{ marginRight: 6 }} />
-                                            ) : null}
-                                            <FormattedMessage
-                                                id='GatewayEnvironments.PlanMapping.fetchPlans'
-                                                defaultMessage='Fetch Remote Plans'
-                                            />
-                                        </Button>
-                                        {!id && (
-                                            <Typography variant='caption' style={{ marginLeft: 12 }}>
-                                                <FormattedMessage
-                                                    id='GatewayEnvironments.PlanMapping.saveFirst'
-                                                    defaultMessage='Save the environment first to fetch remote plans.'
-                                                />
-                                            </Typography>
+                                        {loadingRemotePlans && (
+                                            <CircularProgress size={14} style={{ marginRight: 6 }} />
                                         )}
                                         {remotePlans.length > 0 && (
-                                            <Typography variant='caption' style={{ marginLeft: 12 }}>
+                                            <Typography variant='caption'>
                                                 <FormattedMessage
                                                     id='GatewayEnvironments.PlanMapping.plansLoaded'
                                                     defaultMessage='{count} remote plans loaded'
