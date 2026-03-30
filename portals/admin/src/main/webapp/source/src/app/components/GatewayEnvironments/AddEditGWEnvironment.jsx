@@ -138,8 +138,10 @@ function AddEditGWEnvironment(props) {
     const [remotePlans, setRemotePlans] = useState([]);
     const [localTiers, setLocalTiers] = useState([]);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
+    const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
     const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
     const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
+    const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
     const { gatewayTypes } = settings;
 
     const createDefaultVhost = (currentGatewayType) => {
@@ -205,6 +207,7 @@ function AddEditGWEnvironment(props) {
                     additionalProperties: tempAdditionalProperties || {},
                 };
                 setIsReadOnly(body.isReadOnly || false);
+                setInitialAdditionalProperties(tempAdditionalProperties || {});
                 dispatch({ field: 'editDetails', value: newState });
                 if (body.tierMappings && body.tierMappings.length > 0) {
                     setTierMappings(body.tierMappings);
@@ -217,6 +220,7 @@ function AddEditGWEnvironment(props) {
         } else {
             setIsEditMode(false);
             setTierMappings([]);
+            setInitialAdditionalProperties({});
             setInitialState({
                 name: '',
                 displayName: '',
@@ -276,6 +280,7 @@ function AddEditGWEnvironment(props) {
     useEffect(() => {
         setHasInitializedDefaultMappings(false);
         setHasUserEditedTierMappings(false);
+        setRemotePlansFetchError('');
     }, [id]);
 
     const handleTierMappingChange = (localTierName, remotePlanReference) => {
@@ -321,43 +326,187 @@ function AddEditGWEnvironment(props) {
         }))
         .filter((group) => group.tiers.length > 0);
 
+    const buildVhostDto = () => {
+        const gatewaysProvidedByWSO2 = ['Regular', 'APK'];
+        const vhostDto = [];
+        if (gatewayType === 'Regular') {
+            vhosts.forEach((vhost) => {
+                vhostDto.push({
+                    host: vhost.host,
+                    httpContext: vhost.httpContext,
+                    httpPort: vhost.httpPort,
+                    httpsPort: vhost.httpsPort,
+                    wsPort: vhost.wsPort,
+                    wssPort: vhost.wssPort,
+                });
+            });
+        } else if (gatewayType === 'APK') {
+            vhosts.forEach((vhost) => {
+                vhostDto.push({
+                    host: vhost.host,
+                    httpContext: vhost.httpContext,
+                    httpPort: vhost.httpPort,
+                    httpsPort: vhost.httpsPort,
+                });
+            });
+        } else if (!gatewaysProvidedByWSO2.includes(gatewayType)) {
+            vhosts.forEach((vhost) => {
+                vhostDto.push({
+                    host: vhost.host,
+                    httpContext: vhost.httpContext,
+                    httpPort: vhost.httpPort,
+                    httpsPort: vhost.httpsPort,
+                });
+            });
+        }
+        return vhostDto;
+    };
+
+    const buildAdditionalPropertiesArrayDTO = () => {
+        const additionalPropertiesArrayDTO = [];
+        Object.keys(state.additionalProperties).forEach((key) => {
+            additionalPropertiesArrayDTO.push({ key, value: state.additionalProperties[key] });
+        });
+        return additionalPropertiesArrayDTO;
+    };
+
+    const resolveProvider = () => {
+        const gatewaysProvidedByWSO2 = ['Regular', 'APK'];
+        return gatewaysProvidedByWSO2.includes(gatewayType) ? 'wso2' : 'external';
+    };
+
+    const hasGatewayConnectorConfigErrors = (connectorConfigurations) => {
+        for (const connectorConfig of connectorConfigurations) {
+            if (connectorConfig.required && (!additionalProperties[connectorConfig.name]
+                || additionalProperties[connectorConfig.name] === '')) {
+                return true;
+            }
+            if (connectorConfig.values && connectorConfig.values.length > 0
+                && additionalProperties[connectorConfig.name]) {
+                const selectedOption = connectorConfig.values.find((option) => {
+                    if (typeof option === 'string') {
+                        return option === additionalProperties[connectorConfig.name];
+                    }
+                    return option.name === additionalProperties[connectorConfig.name];
+                });
+                if (selectedOption && typeof selectedOption === 'object' && selectedOption.values) {
+                    if (hasGatewayConnectorConfigErrors(selectedOption.values)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    const hasConnectorConfigChanged = () => {
+        if (!id) {
+            return true;
+        }
+        const currentProperties = state.additionalProperties || {};
+        const allKeys = new Set([
+            ...Object.keys(currentProperties),
+            ...Object.keys(initialAdditionalProperties || {}),
+        ]);
+        for (const key of allKeys) {
+            if ((currentProperties[key] || '') !== (initialAdditionalProperties[key] || '')) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const buildRemotePlanLookupRequest = () => {
+        if (id && !hasConnectorConfigChanged()) {
+            return { environmentId: id };
+        }
+        return {
+            environment: {
+                name: name.trim() || 'temp-environment',
+                displayName: displayName || name.trim() || 'temp-environment',
+                type,
+                description,
+                gatewayType,
+                mode: gatewayMode,
+                apiDiscoveryScheduledWindow: scheduledInterval,
+                vhosts: buildVhostDto(),
+                permissions: {
+                    permissionType: state.permissions.permissionType,
+                    roles: roles.concat(validRoles),
+                },
+                additionalProperties: buildAdditionalPropertiesArrayDTO(),
+                provider: resolveProvider(),
+            },
+        };
+    };
+
     useEffect(() => {
-        if (!id || !isPlanMappingSupported) {
+        if (!isPlanMappingSupported || gatewayType === 'other'
+                || hasGatewayConnectorConfigErrors(gatewayConfigurations)) {
             setRemotePlans([]);
             setLoadingRemotePlans(false);
+            setRemotePlansFetchError('');
             return () => {};
         }
 
         let isCancelled = false;
-        setLoadingRemotePlans(true);
-        new API().getEnvironmentRemotePlans(id).then((result) => {
-            if (!isCancelled) {
-                const { body } = result;
-                setRemotePlans(body.list || []);
+        const timer = setTimeout(() => {
+            setLoadingRemotePlans(true);
+            setRemotePlansFetchError('');
+            if (!hasUserEditedTierMappings) {
+                setHasInitializedDefaultMappings(false);
             }
-        })
-            .catch((error) => {
+            new API().getEnvironmentRemotePlans(buildRemotePlanLookupRequest()).then((result) => {
                 if (!isCancelled) {
-                    const { response } = error;
-                    if (response && response.body) {
-                        Alert.error(response.body.description);
-                    } else {
-                        Alert.error(intl.formatMessage({
-                            id: 'GatewayEnvironments.PlanMapping.fetch.error',
-                            defaultMessage: 'Failed to fetch remote plans from the gateway.',
-                        }));
-                    }
+                    const { body } = result;
+                    setRemotePlans(body.list || []);
                 }
             })
-            .finally(() => {
-                if (!isCancelled) {
-                    setLoadingRemotePlans(false);
-                }
-            });
+                .catch((error) => {
+                    if (!isCancelled) {
+                        const { response } = error;
+                        if (response && response.body) {
+                            setRemotePlansFetchError(response.body.description);
+                        } else {
+                            setRemotePlansFetchError(intl.formatMessage({
+                                id: 'GatewayEnvironments.PlanMapping.fetch.error',
+                                defaultMessage: 'Failed to fetch remote plans from the gateway.',
+                            }));
+                        }
+                        setRemotePlans([]);
+                    }
+                })
+                .finally(() => {
+                    if (!isCancelled) {
+                        setLoadingRemotePlans(false);
+                    }
+                });
+        }, 400);
+
         return () => {
+            clearTimeout(timer);
             isCancelled = true;
         };
-    }, [id, intl, isPlanMappingSupported]);
+    }, [
+        id,
+        intl,
+        isPlanMappingSupported,
+        gatewayType,
+        gatewayConfigurations,
+        additionalProperties,
+        name,
+        displayName,
+        description,
+        type,
+        gatewayMode,
+        scheduledInterval,
+        vhosts,
+        roles,
+        validRoles,
+        state.permissions.permissionType,
+        state.additionalProperties,
+        hasUserEditedTierMappings,
+    ]);
 
     useEffect(() => {
         if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
@@ -368,17 +517,24 @@ function AddEditGWEnvironment(props) {
         }
         const defaultRemotePlan = remotePlans[0];
         setTierMappings((prev) => {
-            const existingTierNames = new Set(prev.map((mapping) => mapping.localTierName));
-            const defaultMappings = visibleLocalTiers
-                .filter((tier) => !existingTierNames.has(tier.name))
-                .map((tier) => ({
+            const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+            const existingMappingsByTier = new Map(prev.map((mapping) => [mapping.localTierName, mapping]));
+            const hiddenMappings = prev.filter((mapping) => !visibleLocalTierNames.has(mapping.localTierName));
+            const normalizedVisibleMappings = visibleLocalTiers.map((tier) => {
+                const existing = existingMappingsByTier.get(tier.name);
+                if (existing?.remotePlanReference?.id && remotePlanIds.has(existing.remotePlanReference.id)) {
+                    return existing;
+                }
+                return {
                     localTierName: tier.name,
                     remotePlanReference: defaultRemotePlan,
-                }));
-            if (defaultMappings.length === 0) {
+                };
+            });
+            const nextMappings = [...hiddenMappings, ...normalizedVisibleMappings];
+            if (JSON.stringify(prev) === JSON.stringify(nextMappings)) {
                 return prev;
             }
-            return [...prev, ...defaultMappings];
+            return nextMappings;
         });
         setHasInitializedDefaultMappings(true);
     }, [
@@ -387,7 +543,34 @@ function AddEditGWEnvironment(props) {
         hasUserEditedTierMappings,
         remotePlans,
         visibleLocalTiers,
+        visibleLocalTierNames,
     ]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || !hasUserEditedTierMappings || remotePlans.length === 0) {
+            return;
+        }
+        const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+        const fallbackPlan = remotePlans[0];
+        setTierMappings((prev) => {
+            let changed = false;
+            const next = prev.map((mapping) => {
+                if (!visibleLocalTierNames.has(mapping.localTierName)) {
+                    return mapping;
+                }
+                const mappedPlanId = mapping?.remotePlanReference?.id;
+                if (mappedPlanId && !remotePlanIds.has(mappedPlanId)) {
+                    changed = true;
+                    return {
+                        ...mapping,
+                        remotePlanReference: fallbackPlan,
+                    };
+                }
+                return mapping;
+            });
+            return changed ? next : prev;
+        });
+    }, [isPlanMappingSupported, hasUserEditedTierMappings, remotePlans, visibleLocalTierNames]);
 
     const getLocalApiTypeLabel = (apiType) => {
         switch (apiType) {
@@ -712,51 +895,29 @@ function AddEditGWEnvironment(props) {
         }
 
         setSaving(true);
-        const gatewaysProvidedByWSO2 = ['Regular', 'APK'];
-        const vhostDto = [];
-        if (gatewayType === 'Regular') {
-            vhosts.forEach((vhost) => {
-                vhostDto.push({
-                    host: vhost.host,
-                    httpContext: vhost.httpContext,
-                    httpPort: vhost.httpPort,
-                    httpsPort: vhost.httpsPort,
-                    wsPort: vhost.wsPort,
-                    wssPort: vhost.wssPort,
-                });
-            });
-        } else if (gatewayType === 'APK') {
-            vhosts.forEach((vhost) => {
-                vhostDto.push({
-                    host: vhost.host,
-                    httpContext: vhost.httpContext,
-                    httpPort: vhost.httpPort,
-                    httpsPort: vhost.httpsPort,
-                });
-            });
-        }
-
-        // handle external gateway vhosts and provider
-        let provider = 'wso2';
-        if (!gatewaysProvidedByWSO2.includes(gatewayType)) {
-            vhosts.forEach((vhost) => {
-                vhostDto.push({
-                    host: vhost.host,
-                    httpContext: vhost.httpContext,
-                    httpPort: vhost.httpPort,
-                    httpsPort: vhost.httpsPort,
-                });
-            });
-            provider = 'external';
-        }
+        const vhostDto = buildVhostDto();
+        const provider = resolveProvider();
 
         permissions.permissionType = state.permissions.permissionType;
         permissions.roles = roles.concat(validRoles);
 
-        const additionalPropertiesArrayDTO = [];
-        Object.keys(state.additionalProperties).forEach((key) => {
-            additionalPropertiesArrayDTO.push({ key, value: state.additionalProperties[key] });
-        });
+        const additionalPropertiesArrayDTO = buildAdditionalPropertiesArrayDTO();
+
+        if (isPlanMappingSupported) {
+            if (loadingRemotePlans) {
+                Alert.error(intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.fetch.pending.error',
+                    defaultMessage: 'Please wait until remote plans are loaded before saving.',
+                }));
+                setSaving(false);
+                return false;
+            }
+            if (remotePlansFetchError) {
+                Alert.error(remotePlansFetchError);
+                setSaving(false);
+                return false;
+            }
+        }
 
         const filteredTierMappings = isPlanMappingSupported
             ? tierMappings.filter((mapping) => (
@@ -773,7 +934,7 @@ function AddEditGWEnvironment(props) {
                 gatewayType, gatewayMode, scheduledInterval, vhostDto, permissions, additionalPropertiesArrayDTO,
                 provider, filteredTierMappings);
 
-        promiseAPICall.then((result) => {
+        promiseAPICall.then(() => {
             if (id) {
                 Alert.success(`${name} ${intl.formatMessage({
                     id: 'Environment.edit.success',
@@ -786,10 +947,6 @@ function AddEditGWEnvironment(props) {
                 })}`);
             }
             setSaving(false);
-            if (!id && result?.body?.id) {
-                history.replace(`/settings/environments/${result.body.id}`);
-                return;
-            }
             history.push('/settings/environments/');
         }).catch((error) => {
             const { response } = error;
@@ -1521,6 +1678,11 @@ function AddEditGWEnvironment(props) {
                                     <Box display='flex' alignItems='center' mb={2}>
                                         {loadingRemotePlans && (
                                             <CircularProgress size={14} style={{ marginRight: 6 }} />
+                                        )}
+                                        {remotePlansFetchError && (
+                                            <Typography variant='caption' color='error' style={{ marginRight: 8 }}>
+                                                {remotePlansFetchError}
+                                            </Typography>
                                         )}
                                         {remotePlans.length > 0 && (
                                             <Typography variant='caption'>

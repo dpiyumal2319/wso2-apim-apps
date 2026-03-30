@@ -586,18 +586,22 @@ class API extends Resource {
     /**
      * Get available remote plans for a Gateway Environment.
      */
-    getEnvironmentRemotePlans(id) {
+    getEnvironmentRemotePlans(lookupRequest) {
         return this.client.then((client) => {
             const environmentsApi = client.apis['Environments'];
-            const params = { environmentId: id };
+            const payload = {
+                'Content-Type': 'application/json',
+            };
             if (environmentsApi.getEnvironmentRemotePlans) {
                 return environmentsApi.getEnvironmentRemotePlans(
-                    params,
+                    payload,
+                    { requestBody: lookupRequest },
                     this._requestMetaData(),
                 );
             }
-            return environmentsApi.get_environments__environmentId__remote_plans(
-                params,
+            return environmentsApi.post_environments_remote_plans(
+                payload,
+                { requestBody: lookupRequest },
                 this._requestMetaData(),
             );
         });
