@@ -59,6 +59,11 @@ import AddEditVhost from 'AppComponents/GatewayEnvironments/AddEditVhost';
 import GatewayConfiguration from 'AppComponents/GatewayEnvironments/GatewayConfiguration';
 import cloneDeep from 'lodash.clonedeep';
 import CircularProgress from '@mui/material/CircularProgress';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import GatewayTypeOptionCard from './GatewayTypeOptionCard';
 import QuickStartGuide from './UniversalGatewayQuickStartGuide';
 import {
@@ -226,6 +231,33 @@ const StyledContentBase = styled(ContentBase)(({ theme }) => ({
 }));
 
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
+
+const LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE = {
+    REQUESTCOUNTLIMIT: 'rest',
+    EVENTCOUNTLIMIT: 'async',
+    AIAPIQUOTALIMIT: 'ai-api',
+};
+const NON_SUBSCRIBABLE_LOCAL_POLICIES = new Set(['Unauthenticated']);
+const SUBSCRIPTIONLESS_LOCAL_POLICIES = new Set([
+    'DefaultSubscriptionless',
+    'AsyncDefaultSubscriptionless',
+]);
+
+const normalizeApiType = (apiType) => (apiType || '').toString().trim().toLowerCase();
+
+const resolveLocalPlanApiType = (policy) => {
+    const limitType = (policy?.defaultLimit?.type || '')
+        .toString()
+        .trim()
+        .toUpperCase();
+    return LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE[limitType] || 'other';
+};
+
+const isMappableLocalPolicy = (policy) => (
+    !!policy
+    && !!policy.policyName
+    && !NON_SUBSCRIBABLE_LOCAL_POLICIES.has(policy.policyName)
+);
 
 const getNameValidationError = (value, formatMessage) => {
     if (value === undefined) {
@@ -402,6 +434,13 @@ function reducer(state, { field, value }) {
 function AddEditGWEnvironment(props) {
     const intl = useIntl();
     const { dataRow } = props;
+    const {
+        match: {
+            params: { id },
+        },
+        history,
+        location,
+    } = props;
 
     const { settings } = useAppContext();
     const [validRoles, setValidRoles] = useState([]);
@@ -411,14 +450,16 @@ function AddEditGWEnvironment(props) {
     const [supportedModes, setSupportedModes] = useState([]);
     const [validating, setValidating] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [tierMappings, setTierMappings] = useState([]);
+    const [remotePlans, setRemotePlans] = useState([]);
+    const [localTiers, setLocalTiers] = useState([]);
+    const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
+    const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
+    const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
+    const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
+    const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
+    const [isEditDataLoaded, setIsEditDataLoaded] = useState(!id);
     const { gatewayTypes } = settings;
-    const {
-        match: {
-            params: { id },
-        },
-        history,
-        location,
-    } = props;
     const searchParams = useMemo(
         () => new URLSearchParams(location?.search || ''),
         [location?.search],
@@ -541,6 +582,7 @@ function AddEditGWEnvironment(props) {
             setPlatformGateway(null);
             setPlatformHeaderEditMode(false);
             setShowPlatformTokenCommands(false);
+            setIsEditDataLoaded(false);
             restApi
                 .getGatewayEnvironment(id)
                 .then(async (result) => {
@@ -563,6 +605,13 @@ function AddEditGWEnvironment(props) {
                         permissions: body.permissions || initialPermissions,
                         additionalProperties: tempAdditionalProperties || {},
                     };
+                    setInitialAdditionalProperties(tempAdditionalProperties || {});
+                    if (body.tierMappings && body.tierMappings.length > 0) {
+                        setTierMappings(body.tierMappings);
+                        setHasInitializedDefaultMappings(true);
+                    } else {
+                        setTierMappings([]);
+                    }
                     if (platformGatewayId) {
                         dispatch({ field: 'editDetails', value: newState });
                         setIsPlatformGatewayEdit(true);
@@ -594,10 +643,14 @@ function AddEditGWEnvironment(props) {
                 .finally(() => {
                     setPlatformGatewayLoading(false);
                     setIsGatewayEditTypeResolved(true);
+                    setIsEditDataLoaded(true);
                 });
             setIsEditMode(true);
         } else {
             setIsGatewayEditTypeResolved(true);
+            setIsEditDataLoaded(true);
+            setTierMappings([]);
+            setInitialAdditionalProperties({});
             const newInitialState = {
                 name: '',
                 displayName: '',
@@ -658,6 +711,374 @@ function AddEditGWEnvironment(props) {
             setSupportedModes(config.supportedModes || []);
         }
     }, [gatewayType]);
+
+    useEffect(() => {
+        restApi
+            .getSubscritionPolicyList()
+            .then((result) => {
+                const { body } = result;
+                if (body?.list) {
+                    setLocalTiers(
+                        body.list
+                            .filter((policy) => isMappableLocalPolicy(policy))
+                            .map((policy) => ({
+                                name: policy.policyName,
+                                displayName: policy.displayName || policy.policyName,
+                                apiType: resolveLocalPlanApiType(policy),
+                            })),
+                    );
+                }
+            })
+            .catch(() => {
+                // Non-critical; plan mapping can render without local tiers.
+            });
+    }, [restApi]);
+
+    useEffect(() => {
+        setHasInitializedDefaultMappings(false);
+        setHasUserEditedTierMappings(false);
+        setRemotePlansFetchError('');
+    }, [id]);
+
+    const gatewayConfig = settings.gatewayConfiguration
+        ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
+        : null;
+    const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
+    const isSubscriptionlessSupported = gatewayConfig?.subscriptionlessSupported === true;
+    const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
+        .map((apiType) => normalizeApiType(apiType))
+        .filter(Boolean);
+
+    const visibleLocalTiers = localTiers.filter((tier) => (
+        (supportedApiTypes.length === 0 || supportedApiTypes.includes(tier.apiType))
+        && (isSubscriptionlessSupported || !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name))
+    ));
+    const visibleLocalTierNames = new Set(visibleLocalTiers.map((tier) => tier.name));
+    const groupOrder = supportedApiTypes.length > 0
+        ? supportedApiTypes
+        : [...new Set(visibleLocalTiers.map((tier) => tier.apiType))];
+    const groupedLocalTiers = groupOrder
+        .map((apiType) => ({
+            apiType,
+            tiers: visibleLocalTiers.filter((tier) => tier.apiType === apiType),
+        }))
+        .filter((group) => group.tiers.length > 0);
+
+    const handleTierMappingChange = (localTierName, remotePlanReference) => {
+        setHasUserEditedTierMappings(true);
+        setHasInitializedDefaultMappings(true);
+        setTierMappings((prev) => {
+            const existing = prev.filter((mapping) => mapping.localTierName !== localTierName);
+            if (remotePlanReference) {
+                return [...existing, { localTierName, remotePlanReference }];
+            }
+            return existing;
+        });
+    };
+
+    const getMappedPlanId = (localTierName) => {
+        const mapping = tierMappings.find((item) => item.localTierName === localTierName);
+        return mapping ? (mapping.remotePlanReference?.id || '') : '';
+    };
+
+    /**
+     * Renders a select component for mapping a local tier to a remote plan.
+     * Extracted to reduce JSX nesting depth.
+     * @param {object} tier - The local tier object
+     * @returns {JSX.Element} The tier mapping select component
+     */
+    const renderTierMappingSelect = (tier) => {
+        const mappedPlanId = getMappedPlanId(tier.name);
+        const mappedPlanName = tierMappings.find(
+            (m) => m.localTierName === tier.name,
+        )?.remotePlanReference?.name;
+
+        return (
+            <FormControl fullWidth size='small' disabled={isReadOnly}>
+                <Select
+                    value={mappedPlanId}
+                    displayEmpty
+                    onChange={(e) => {
+                        const plan = remotePlans.find((p) => p.id === e.target.value);
+                        handleTierMappingChange(tier.name, plan || null);
+                    }}
+                >
+                    <MenuItem value=''>
+                        <em>
+                            <FormattedMessage
+                                id='GatewayEnvironments.PlanMapping.noMapping'
+                                defaultMessage='No mapping'
+                            />
+                        </em>
+                    </MenuItem>
+                    {remotePlans.map((plan) => (
+                        <MenuItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                        </MenuItem>
+                    ))}
+                    {/* Show saved mapping label when remote plans not yet fetched */}
+                    {remotePlans.length === 0 && mappedPlanId && (
+                        <MenuItem key={mappedPlanId} value={mappedPlanId}>
+                            {mappedPlanName || mappedPlanId}
+                        </MenuItem>
+                    )}
+                </Select>
+            </FormControl>
+        );
+    };
+
+    const hasGatewayConnectorConfigErrors = (connectorConfigurations) => {
+        for (const connectorConfig of connectorConfigurations) {
+            if (
+                connectorConfig.required
+                && (!additionalProperties[connectorConfig.name]
+                    || additionalProperties[connectorConfig.name] === '')
+            ) {
+                return true;
+            }
+            if (
+                connectorConfig.values
+                && connectorConfig.values.length > 0
+                && additionalProperties[connectorConfig.name]
+            ) {
+                const selectedOption = connectorConfig.values.find((option) => {
+                    if (typeof option === 'string') {
+                        return option === additionalProperties[connectorConfig.name];
+                    }
+                    return option.name === additionalProperties[connectorConfig.name];
+                });
+                if (
+                    selectedOption
+                    && typeof selectedOption === 'object'
+                    && selectedOption.values
+                ) {
+                    if (hasGatewayConnectorConfigErrors(selectedOption.values)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    const hasConnectorConfigChanged = () => {
+        if (!id) {
+            return true;
+        }
+        const currentProperties = state.additionalProperties || {};
+        const allKeys = new Set([
+            ...Object.keys(currentProperties),
+            ...Object.keys(initialAdditionalProperties || {}),
+        ]);
+        for (const key of allKeys) {
+            if ((currentProperties[key] || '') !== (initialAdditionalProperties[key] || '')) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const buildRemotePlanLookupEnvironment = () => ({
+        name: name.trim() || 'temp-environment',
+        displayName: displayName || name.trim() || 'temp-environment',
+        type,
+        description,
+        gatewayType,
+        mode: gatewayMode,
+        apiDiscoveryScheduledWindow: scheduledInterval,
+        vhosts: buildVhostDTO(vhosts, gatewayType),
+        permissions: {
+            permissionType: state.permissions.permissionType,
+            roles: roles.concat(validRoles),
+        },
+        additionalProperties: buildAdditionalPropertiesArray(state.additionalProperties),
+        provider: getGatewayProvider(gatewayType),
+    });
+
+    const buildRemotePlanLookupRequest = () => {
+        if (!id) {
+            return { environment: buildRemotePlanLookupEnvironment() };
+        }
+        if (!hasConnectorConfigChanged()) {
+            return { environmentId: id };
+        }
+        return {
+            environmentId: id,
+            environment: buildRemotePlanLookupEnvironment(),
+        };
+    };
+
+    useEffect(() => {
+        if (
+            (id && !isEditDataLoaded)
+            || !isPlanMappingSupported
+            || gatewayType === 'other'
+            || hasGatewayConnectorConfigErrors(gatewayConfigurations)
+        ) {
+            setRemotePlans([]);
+            setLoadingRemotePlans(false);
+            setRemotePlansFetchError('');
+            return () => {};
+        }
+
+        let isCancelled = false;
+        const timer = setTimeout(() => {
+            setLoadingRemotePlans(true);
+            setRemotePlansFetchError('');
+            if (!hasUserEditedTierMappings) {
+                setHasInitializedDefaultMappings(false);
+            }
+            restApi
+                .getEnvironmentRemotePlans(buildRemotePlanLookupRequest())
+                .then((result) => {
+                    if (!isCancelled) {
+                        const { body } = result;
+                        setRemotePlans(body.list || []);
+                    }
+                })
+                .catch((error) => {
+                    if (!isCancelled) {
+                        const { response } = error;
+                        if (response?.body) {
+                            setRemotePlansFetchError(response.body.description);
+                        } else {
+                            setRemotePlansFetchError(intl.formatMessage({
+                                id: 'GatewayEnvironments.PlanMapping.fetch.error',
+                                defaultMessage: 'Failed to fetch remote plans from the gateway.',
+                            }));
+                        }
+                        setRemotePlans([]);
+                    }
+                })
+                .finally(() => {
+                    if (!isCancelled) {
+                        setLoadingRemotePlans(false);
+                    }
+                });
+        }, 400);
+
+        return () => {
+            clearTimeout(timer);
+            isCancelled = true;
+        };
+    }, [
+        id,
+        isEditDataLoaded,
+        isPlanMappingSupported,
+        gatewayType,
+        gatewayConfigurations,
+        additionalProperties,
+        name,
+        displayName,
+        description,
+        type,
+        gatewayMode,
+        scheduledInterval,
+        vhosts,
+        roles,
+        validRoles,
+        state.permissions.permissionType,
+        state.additionalProperties,
+        hasUserEditedTierMappings,
+        restApi,
+        intl,
+    ]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
+            return;
+        }
+        if (remotePlans.length === 0 || visibleLocalTiers.length === 0) {
+            return;
+        }
+        const defaultRemotePlan = remotePlans[0];
+        setTierMappings((prev) => {
+            const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+            const existingMappingsByTier = new Map(
+                prev.map((mapping) => [mapping.localTierName, mapping]),
+            );
+            const hiddenMappings = prev.filter(
+                (mapping) => !visibleLocalTierNames.has(mapping.localTierName),
+            );
+            const normalizedVisibleMappings = visibleLocalTiers.map((tier) => {
+                const existing = existingMappingsByTier.get(tier.name);
+                if (
+                    existing?.remotePlanReference?.id
+                    && remotePlanIds.has(existing.remotePlanReference.id)
+                ) {
+                    return existing;
+                }
+                return {
+                    localTierName: tier.name,
+                    remotePlanReference: defaultRemotePlan,
+                };
+            });
+            const nextMappings = [...hiddenMappings, ...normalizedVisibleMappings];
+            if (JSON.stringify(prev) === JSON.stringify(nextMappings)) {
+                return prev;
+            }
+            return nextMappings;
+        });
+        setHasInitializedDefaultMappings(true);
+    }, [
+        isPlanMappingSupported,
+        hasInitializedDefaultMappings,
+        hasUserEditedTierMappings,
+        remotePlans,
+        visibleLocalTiers,
+        visibleLocalTierNames,
+    ]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || !hasUserEditedTierMappings || remotePlans.length === 0) {
+            return;
+        }
+        const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+        const fallbackPlan = remotePlans[0];
+        setTierMappings((prev) => {
+            let changed = false;
+            const next = prev.map((mapping) => {
+                if (!visibleLocalTierNames.has(mapping.localTierName)) {
+                    return mapping;
+                }
+                const mappedPlanId = mapping?.remotePlanReference?.id;
+                if (mappedPlanId && !remotePlanIds.has(mappedPlanId)) {
+                    changed = true;
+                    return {
+                        ...mapping,
+                        remotePlanReference: fallbackPlan,
+                    };
+                }
+                return mapping;
+            });
+            return changed ? next : prev;
+        });
+    }, [isPlanMappingSupported, hasUserEditedTierMappings, remotePlans, visibleLocalTierNames]);
+
+    const getLocalApiTypeLabel = (apiType) => {
+        switch (apiType) {
+            case 'rest':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.rest',
+                    defaultMessage: 'REST APIs',
+                });
+            case 'async':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.async',
+                    defaultMessage: 'Async APIs',
+                });
+            case 'ai-api':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.ai',
+                    defaultMessage: 'AI APIs',
+                });
+            default:
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.other',
+                    defaultMessage: 'Other APIs',
+                });
+        }
+    };
 
     let permissionType = '';
     if (permissions) {
@@ -981,57 +1402,7 @@ function AddEditGWEnvironment(props) {
         if (scheduledIntervalErrors) {
             errorText += scheduledIntervalErrors + '\n';
         }
-        let gatewayConnectorConfigHasErrors = false;
-
-        const checkGatewayConnectorConfigErrors = (connectorConfigurations) => {
-            for (const connectorConfig of connectorConfigurations) {
-                if (
-                    connectorConfig.required
-                    && (!additionalProperties[connectorConfig.name]
-                        || additionalProperties[connectorConfig.name] === '')
-                ) {
-                    return true;
-                }
-
-                if (
-                    connectorConfig.values
-                    && connectorConfig.values.length > 0
-                    && additionalProperties[connectorConfig.name]
-                ) {
-                    const selectedOption = connectorConfig.values.find(
-                        (option) => {
-                            if (typeof option === 'string') {
-                                return (
-                                    option
-                                    === additionalProperties[connectorConfig.name]
-                                );
-                            }
-                            return (
-                                option.name
-                                === additionalProperties[connectorConfig.name]
-                            );
-                        },
-                    );
-
-                    if (
-                        selectedOption
-                        && typeof selectedOption === 'object'
-                        && selectedOption.values
-                    ) {
-                        if (
-                            checkGatewayConnectorConfigErrors(
-                                selectedOption.values,
-                            )
-                        ) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        };
-
-        gatewayConnectorConfigHasErrors = checkGatewayConnectorConfigErrors(
+        const gatewayConnectorConfigHasErrors = hasGatewayConnectorConfigErrors(
             gatewayConfigurations,
         );
 
@@ -1084,6 +1455,31 @@ function AddEditGWEnvironment(props) {
         const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(
             state.additionalProperties,
         );
+        const filteredTierMappings = isPlanMappingSupported
+            ? tierMappings.filter((mapping) => (
+                !!mapping
+                && !!mapping.localTierName
+                && visibleLocalTierNames.has(mapping.localTierName)
+            ))
+            : [];
+
+        if (isPlanMappingSupported) {
+            if (loadingRemotePlans) {
+                Alert.error(
+                    intl.formatMessage({
+                        id: 'GatewayEnvironments.PlanMapping.fetch.pending.error',
+                        defaultMessage: 'Please wait until remote plans are loaded before saving.',
+                    }),
+                );
+                setSaving(false);
+                return false;
+            }
+            if (remotePlansFetchError) {
+                Alert.error(remotePlansFetchError);
+                setSaving(false);
+                return false;
+            }
+        }
 
         let promiseAPICall;
         if (!id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform) {
@@ -1124,6 +1520,7 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
+                filteredTierMappings,
             );
         } else {
             // assign the create promise to the promiseAPICall
@@ -1139,6 +1536,7 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
+                filteredTierMappings,
             );
         }
 
@@ -2663,6 +3061,159 @@ function AddEditGWEnvironment(props) {
                                             <StyledHr />
                                         </Box>
                                     </Grid>
+                                    {isPlanMappingSupported && (
+                                        <>
+                                            <Grid item xs={12} md={12} lg={3}>
+                                                <Box
+                                                    display='flex'
+                                                    flexDirection='row'
+                                                    alignItems='center'
+                                                >
+                                                    <Box flex='1'>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='subtitle2'
+                                                            component='div'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.title'
+                                                                defaultMessage='Plan Mapping'
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.description'
+                                                                defaultMessage={
+                                                                    'Map local WSO2 subscriptiontiers to'
+                                                                    + ' remote gateway plans.'
+                                                                }
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.subscribableOnly.description'
+                                                                }
+                                                                defaultMessage={
+                                                                    'Only subscribable local plans are listed.'
+                                                                    + ' Subscriptionless plans are shown only'
+                                                                    + ' when the gateway supports them.'
+                                                                }
+                                                            />
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={12} md={12} lg={9}>
+                                                <Box component='div' m={1}>
+                                                    <Box display='flex' alignItems='center' mb={2}>
+                                                        {loadingRemotePlans && (
+                                                            <CircularProgress size={14} style={{ marginRight: 6 }} />
+                                                        )}
+                                                        {remotePlansFetchError && (
+                                                            <Typography
+                                                                variant='caption'
+                                                                color='error'
+                                                                style={{ marginRight: 8 }}
+                                                            >
+                                                                {remotePlansFetchError}
+                                                            </Typography>
+                                                        )}
+                                                        {remotePlans.length > 0 && (
+                                                            <Typography variant='caption'>
+                                                                <FormattedMessage
+                                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
+                                                                    defaultMessage='{count} remote plans loaded'
+                                                                    values={{ count: remotePlans.length }}
+                                                                />
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                    {groupedLocalTiers.length > 0 && (
+                                                        <Table size='small'>
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.localTier'
+                                                                            }
+                                                                            defaultMessage='Local Tier'
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.remotePlan'
+                                                                            }
+                                                                            defaultMessage='Remote Plan'
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {groupedLocalTiers.map((group) => (
+                                                                    <React.Fragment key={group.apiType}>
+                                                                        <TableRow>
+                                                                            <TableCell colSpan={2}>
+                                                                                <Typography variant='subtitle2'>
+                                                                                    {getLocalApiTypeLabel(
+                                                                                        group.apiType,
+                                                                                    )}
+                                                                                </Typography>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                        {group.tiers.map((tier) => (
+                                                                            <TableRow key={tier.name}>
+                                                                                <TableCell>
+                                                                                    <Typography variant='body2'>
+                                                                                        {tier.displayName}
+                                                                                    </Typography>
+                                                                                </TableCell>
+                                                                                <TableCell>
+                                                                                    {renderTierMappingSelect(tier)}
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        ))}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    )}
+                                                    {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
+                                                        <Typography variant='caption'>
+                                                            <FormattedMessage
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.noCompatibleLocalPlans'
+                                                                }
+                                                                defaultMessage={
+                                                                    'No local subscription plans match the'
+                                                                    + ' supported API types of this gateway.'
+                                                                }
+                                                            />
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={12}>
+                                                <Box marginTop={2} marginBottom={2}>
+                                                    <StyledHr />
+                                                </Box>
+                                            </Grid>
+                                        </>
+                                    )}
                                 </>
                             )}
                             <Grid item xs={12} mb={2}>
