@@ -186,7 +186,13 @@ export default function DevelopSectionMenu(props) {
                             id='left-menu-itembusinessinfo'
                             route='business-info'
                         />
-                        {(componentValidator.subscriptions.includes("subscriptions") && !isAPIProduct) && (
+                        {(() => {
+                            // Handle both array (legacy) and object (new schema) formats
+                            const subscriptionsSupported = Array.isArray(componentValidator.subscriptions)
+                                ? componentValidator.subscriptions.includes("subscriptions")
+                                : componentValidator.subscriptions?.supported;
+                            return subscriptionsSupported && !isAPIProduct;
+                        })() && (
                             <LeftMenuItem
                                 text={intl.formatMessage({
                                     id: 'Apis.Details.index.subscriptions',
