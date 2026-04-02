@@ -517,10 +517,16 @@ export default function RuntimeConfiguration() {
 
     useEffect(() => {
         if (!isLoading) {
-            setComponentValidator(publisherSettings.gatewayFeatureCatalog
-                .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse'].runtime);
-            setEndpointSecurity(publisherSettings.gatewayFeatureCatalog
-                .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse'].endpoints);
+            const gatewayType = api.gatewayType || 'wso2/synapse';
+            const gatewayConfig = publisherSettings.gatewayFeatureCatalog.gatewayFeatures[gatewayType];
+            const runtimeFeatures = [...(gatewayConfig.runtime || [])];
+
+            if (gatewayConfig.apiKeys?.supported && !runtimeFeatures.includes('apikey')) {
+                runtimeFeatures.push('apikey');
+            }
+
+            setComponentValidator(runtimeFeatures);
+            setEndpointSecurity(gatewayConfig.endpoints);
         }
     }, [isLoading]);
 
