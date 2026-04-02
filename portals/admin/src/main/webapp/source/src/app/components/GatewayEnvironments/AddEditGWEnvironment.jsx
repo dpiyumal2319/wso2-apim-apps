@@ -125,6 +125,7 @@ function reducer(state, { field, value }) {
 function AddEditGWEnvironment(props) {
     const intl = useIntl();
     const { dataRow } = props;
+    const { match: { params: { id } }, history } = props;
 
     const { settings } = useAppContext();
     const [validRoles, setValidRoles] = useState([]);
@@ -142,6 +143,7 @@ function AddEditGWEnvironment(props) {
     const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
     const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
     const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
+    const [isEditDataLoaded, setIsEditDataLoaded] = useState(!id);
     const { gatewayTypes } = settings;
 
     const createDefaultVhost = (currentGatewayType) => {
@@ -157,7 +159,6 @@ function AddEditGWEnvironment(props) {
             isNew: true,
         };
     };
-    const { match: { params: { id } }, history } = props;
     const initialPermissions = dataRow && dataRow.permissions
         ? dataRow.permissions
         : { roles: [], permissionType: 'PUBLIC' };
@@ -187,8 +188,14 @@ function AddEditGWEnvironment(props) {
     const [roles, setRoles] = useState([]);
 
     useEffect(() => {
+        let isCancelled = false;
         if (id) {
+            setIsEditMode(true);
+            setIsEditDataLoaded(false);
             new API().getGatewayEnvironment(id).then((result) => {
+                if (isCancelled) {
+                    return;
+                }
                 const { body } = result;
                 const tempAdditionalProperties = {};
                 body.additionalProperties.forEach((property) => {
@@ -209,6 +216,7 @@ function AddEditGWEnvironment(props) {
                 setIsReadOnly(body.isReadOnly || false);
                 setInitialAdditionalProperties(tempAdditionalProperties || {});
                 dispatch({ field: 'editDetails', value: newState });
+                setIsEditDataLoaded(true);
                 if (body.tierMappings && body.tierMappings.length > 0) {
                     setTierMappings(body.tierMappings);
                     setHasInitializedDefaultMappings(true);
@@ -216,9 +224,9 @@ function AddEditGWEnvironment(props) {
                     setTierMappings([]);
                 }
             });
-            setIsEditMode(true);
         } else {
             setIsEditMode(false);
+            setIsEditDataLoaded(true);
             setTierMappings([]);
             setInitialAdditionalProperties({});
             setInitialState({
@@ -237,6 +245,9 @@ function AddEditGWEnvironment(props) {
                 additionalProperties: {},
             });
         }
+        return () => {
+            isCancelled = true;
+        };
     }, [id]);
 
     useEffect(() => {
@@ -416,32 +427,40 @@ function AddEditGWEnvironment(props) {
         return false;
     };
 
+    const buildRemotePlanLookupEnvironment = () => ({
+        name: name.trim() || 'temp-environment',
+        displayName: displayName || name.trim() || 'temp-environment',
+        type,
+        description,
+        gatewayType,
+        mode: gatewayMode,
+        apiDiscoveryScheduledWindow: scheduledInterval,
+        vhosts: buildVhostDto(),
+        permissions: {
+            permissionType: state.permissions.permissionType,
+            roles: roles.concat(validRoles),
+        },
+        additionalProperties: buildAdditionalPropertiesArrayDTO(),
+        provider: resolveProvider(),
+    });
+
     const buildRemotePlanLookupRequest = () => {
-        if (id && !hasConnectorConfigChanged()) {
+        if (!id) {
+            return {
+                environment: buildRemotePlanLookupEnvironment(),
+            };
+        }
+        if (!hasConnectorConfigChanged()) {
             return { environmentId: id };
         }
         return {
-            environment: {
-                name: name.trim() || 'temp-environment',
-                displayName: displayName || name.trim() || 'temp-environment',
-                type,
-                description,
-                gatewayType,
-                mode: gatewayMode,
-                apiDiscoveryScheduledWindow: scheduledInterval,
-                vhosts: buildVhostDto(),
-                permissions: {
-                    permissionType: state.permissions.permissionType,
-                    roles: roles.concat(validRoles),
-                },
-                additionalProperties: buildAdditionalPropertiesArrayDTO(),
-                provider: resolveProvider(),
-            },
+            environmentId: id,
+            environment: buildRemotePlanLookupEnvironment(),
         };
     };
 
     useEffect(() => {
-        if (!isPlanMappingSupported || gatewayType === 'other'
+        if ((id && !isEditDataLoaded) || !isPlanMappingSupported || gatewayType === 'other'
                 || hasGatewayConnectorConfigErrors(gatewayConfigurations)) {
             setRemotePlans([]);
             setLoadingRemotePlans(false);
@@ -489,6 +508,7 @@ function AddEditGWEnvironment(props) {
         };
     }, [
         id,
+        isEditDataLoaded,
         intl,
         isPlanMappingSupported,
         gatewayType,
