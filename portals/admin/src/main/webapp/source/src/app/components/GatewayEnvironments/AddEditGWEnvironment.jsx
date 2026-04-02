@@ -781,6 +781,52 @@ function AddEditGWEnvironment(props) {
         return mapping ? (mapping.remotePlanReference?.id || '') : '';
     };
 
+    /**
+     * Renders a select component for mapping a local tier to a remote plan.
+     * Extracted to reduce JSX nesting depth.
+     * @param {object} tier - The local tier object
+     * @returns {JSX.Element} The tier mapping select component
+     */
+    const renderTierMappingSelect = (tier) => {
+        const mappedPlanId = getMappedPlanId(tier.name);
+        const mappedPlanName = tierMappings.find(
+            (m) => m.localTierName === tier.name,
+        )?.remotePlanReference?.name;
+
+        return (
+            <FormControl fullWidth size='small' disabled={isReadOnly}>
+                <Select
+                    value={mappedPlanId}
+                    displayEmpty
+                    onChange={(e) => {
+                        const plan = remotePlans.find((p) => p.id === e.target.value);
+                        handleTierMappingChange(tier.name, plan || null);
+                    }}
+                >
+                    <MenuItem value=''>
+                        <em>
+                            <FormattedMessage
+                                id='GatewayEnvironments.PlanMapping.noMapping'
+                                defaultMessage='No mapping'
+                            />
+                        </em>
+                    </MenuItem>
+                    {remotePlans.map((plan) => (
+                        <MenuItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                        </MenuItem>
+                    ))}
+                    {/* Show saved mapping label when remote plans not yet fetched */}
+                    {remotePlans.length === 0 && mappedPlanId && (
+                        <MenuItem key={mappedPlanId} value={mappedPlanId}>
+                            {mappedPlanName || mappedPlanId}
+                        </MenuItem>
+                    )}
+                </Select>
+            </FormControl>
+        );
+    };
+
     const hasGatewayConnectorConfigErrors = (connectorConfigurations) => {
         for (const connectorConfig of connectorConfigurations) {
             if (
@@ -3041,7 +3087,10 @@ function AddEditGWEnvironment(props) {
                                                         >
                                                             <FormattedMessage
                                                                 id='GatewayEnvironments.PlanMapping.description'
-                                                                defaultMessage='Map local WSO2 subscriptiontiers to remote gateway plans.'
+                                                                defaultMessage={
+                                                                    'Map local WSO2 subscriptiontiers to'
+                                                                    + ' remote gateway plans.'
+                                                                }
                                                             />
                                                         </Typography>
                                                         <Typography
@@ -3050,8 +3099,15 @@ function AddEditGWEnvironment(props) {
                                                             component='p'
                                                         >
                                                             <FormattedMessage
-                                                                id='GatewayEnvironments.PlanMapping.subscribableOnly.description'
-                                                                defaultMessage='Only subscribable local plans are listed. Subscriptionless plans are shown only when the gateway supports them.'
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.subscribableOnly.description'
+                                                                }
+                                                                defaultMessage={
+                                                                    'Only subscribable local plans are listed.'
+                                                                    + ' Subscriptionless plans are shown only'
+                                                                    + ' when the gateway supports them.'
+                                                                }
                                                             />
                                                         </Typography>
                                                     </Box>
@@ -3064,7 +3120,11 @@ function AddEditGWEnvironment(props) {
                                                             <CircularProgress size={14} style={{ marginRight: 6 }} />
                                                         )}
                                                         {remotePlansFetchError && (
-                                                            <Typography variant='caption' color='error' style={{ marginRight: 8 }}>
+                                                            <Typography
+                                                                variant='caption'
+                                                                color='error'
+                                                                style={{ marginRight: 8 }}
+                                                            >
                                                                 {remotePlansFetchError}
                                                             </Typography>
                                                         )}
@@ -3084,13 +3144,19 @@ function AddEditGWEnvironment(props) {
                                                                 <TableRow>
                                                                     <TableCell>
                                                                         <FormattedMessage
-                                                                            id='GatewayEnvironments.PlanMapping.localTier'
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.localTier'
+                                                                            }
                                                                             defaultMessage='Local Tier'
                                                                         />
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         <FormattedMessage
-                                                                            id='GatewayEnvironments.PlanMapping.remotePlan'
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.remotePlan'
+                                                                            }
                                                                             defaultMessage='Remote Plan'
                                                                         />
                                                                     </TableCell>
@@ -3102,7 +3168,9 @@ function AddEditGWEnvironment(props) {
                                                                         <TableRow>
                                                                             <TableCell colSpan={2}>
                                                                                 <Typography variant='subtitle2'>
-                                                                                    {getLocalApiTypeLabel(group.apiType)}
+                                                                                    {getLocalApiTypeLabel(
+                                                                                        group.apiType,
+                                                                                    )}
                                                                                 </Typography>
                                                                             </TableCell>
                                                                         </TableRow>
@@ -3114,52 +3182,7 @@ function AddEditGWEnvironment(props) {
                                                                                     </Typography>
                                                                                 </TableCell>
                                                                                 <TableCell>
-                                                                                    <FormControl
-                                                                                        fullWidth
-                                                                                        size='small'
-                                                                                        disabled={isReadOnly}
-                                                                                    >
-                                                                                        <Select
-                                                                                            value={getMappedPlanId(tier.name)}
-                                                                                            displayEmpty
-                                                                                            onChange={(e) => {
-                                                                                                const plan = remotePlans.find(
-                                                                                                    (item) => item.id === e.target.value,
-                                                                                                );
-                                                                                                handleTierMappingChange(
-                                                                                                    tier.name,
-                                                                                                    plan || null,
-                                                                                                );
-                                                                                            }}
-                                                                                        >
-                                                                                            <MenuItem value=''>
-                                                                                                <em>
-                                                                                                    <FormattedMessage
-                                                                                                        id='GatewayEnvironments.PlanMapping.noMapping'
-                                                                                                        defaultMessage='No mapping'
-                                                                                                    />
-                                                                                                </em>
-                                                                                            </MenuItem>
-                                                                                            {remotePlans.map((plan) => (
-                                                                                                <MenuItem key={plan.id} value={plan.id}>
-                                                                                                    {plan.name}
-                                                                                                </MenuItem>
-                                                                                            ))}
-                                                                                            {remotePlans.length === 0
-                                                                                                && getMappedPlanId(tier.name) && (
-                                                                                                <MenuItem
-                                                                                                    key={getMappedPlanId(tier.name)}
-                                                                                                    value={getMappedPlanId(tier.name)}
-                                                                                                >
-                                                                                                    {tierMappings.find(
-                                                                                                        (mapping) => mapping.localTierName
-                                                                                                            === tier.name,
-                                                                                                    )?.remotePlanReference?.name
-                                                                                                        || getMappedPlanId(tier.name)}
-                                                                                                </MenuItem>
-                                                                                            )}
-                                                                                        </Select>
-                                                                                    </FormControl>
+                                                                                    {renderTierMappingSelect(tier)}
                                                                                 </TableCell>
                                                                             </TableRow>
                                                                         ))}
@@ -3171,8 +3194,14 @@ function AddEditGWEnvironment(props) {
                                                     {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
                                                         <Typography variant='caption'>
                                                             <FormattedMessage
-                                                                id='GatewayEnvironments.PlanMapping.noCompatibleLocalPlans'
-                                                                defaultMessage='No local subscription plans match the supported API types of this gateway.'
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.noCompatibleLocalPlans'
+                                                                }
+                                                                defaultMessage={
+                                                                    'No local subscription plans match the'
+                                                                    + ' supported API types of this gateway.'
+                                                                }
                                                             />
                                                         </Typography>
                                                     )}
