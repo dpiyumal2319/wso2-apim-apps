@@ -449,6 +449,7 @@ function AddEditGWEnvironment(props) {
     const [localTiers, setLocalTiers] = useState([]);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
     const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
+    const [hasResolvedRemotePlans, setHasResolvedRemotePlans] = useState(false);
     const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
     const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
     const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
@@ -727,6 +728,7 @@ function AddEditGWEnvironment(props) {
         setHasInitializedDefaultMappings(false);
         setHasUserEditedTierMappings(false);
         setRemotePlansFetchError('');
+        setHasResolvedRemotePlans(false);
     }, [id]);
 
     const handleTierMappingChange = (localTierName, remotePlanReference) => {
@@ -774,6 +776,8 @@ function AddEditGWEnvironment(props) {
         const mappedPlanName = tierMappings.find(
             (mapping) => mapping.localTierName === tier.name,
         )?.remotePlanReference?.name || mappedPlanId;
+        const isMappedPlanMissing = mappedPlanId
+            && !remotePlans.some((plan) => plan.id === mappedPlanId);
 
         return (
             <TableRow key={tier.name}>
@@ -815,7 +819,7 @@ function AddEditGWEnvironment(props) {
                                     {plan.name}
                                 </MenuItem>
                             ))}
-                            {remotePlans.length === 0 && mappedPlanId && (
+                            {isMappedPlanMissing && (
                                 <MenuItem
                                     key={mappedPlanId}
                                     value={mappedPlanId}
@@ -1107,6 +1111,39 @@ function AddEditGWEnvironment(props) {
         };
     };
 
+    const remotePlanLookupKey = useMemo(() => {
+        if (!isPlanMappingSupported || gatewayType === 'other') {
+            return '';
+        }
+        if (hasGatewayConnectorConfigErrors(gatewayConfigurations)) {
+            return '';
+        }
+        if (id && !hasConnectorConfigChanged()) {
+            return `persisted:${id}`;
+        }
+        return JSON.stringify({
+            environmentId: id || '',
+            gatewayType,
+            gatewayMode,
+            scheduledInterval,
+            type,
+            vhosts: buildVhostDTO(vhosts, gatewayType),
+            additionalProperties: buildAdditionalPropertiesArray(state.additionalProperties),
+            provider: getGatewayProvider(gatewayType),
+        });
+    }, [
+        additionalProperties,
+        gatewayConfigurations,
+        gatewayMode,
+        gatewayType,
+        id,
+        initialAdditionalProperties,
+        isPlanMappingSupported,
+        scheduledInterval,
+        type,
+        vhosts,
+    ]);
+
     const onChange = (e) => {
         if (e.target.name === 'GatewayPermissionRestrict') {
             permissionType = e.target.value;
@@ -1132,13 +1169,12 @@ function AddEditGWEnvironment(props) {
     useEffect(() => {
         if (
             (id && !isEditDataLoaded)
-            || !isPlanMappingSupported
-            || gatewayType === 'other'
-            || hasGatewayConnectorConfigErrors(gatewayConfigurations)
+            || !remotePlanLookupKey
         ) {
             setRemotePlans([]);
             setLoadingRemotePlans(false);
             setRemotePlansFetchError('');
+            setHasResolvedRemotePlans(false);
             return () => {};
         }
 
@@ -1146,6 +1182,7 @@ function AddEditGWEnvironment(props) {
         const timer = setTimeout(() => {
             setLoadingRemotePlans(true);
             setRemotePlansFetchError('');
+            setHasResolvedRemotePlans(false);
             if (!hasUserEditedTierMappings) {
                 setHasInitializedDefaultMappings(false);
             }
@@ -1153,6 +1190,7 @@ function AddEditGWEnvironment(props) {
                 .then((result) => {
                     if (!isCancelled) {
                         setRemotePlans(result?.body?.list || []);
+                        setHasResolvedRemotePlans(true);
                     }
                 })
                 .catch((error) => {
@@ -1178,37 +1216,26 @@ function AddEditGWEnvironment(props) {
             isCancelled = true;
         };
     }, [
-        additionalProperties,
-        description,
-        displayName,
-        gatewayConfigurations,
-        gatewayMode,
-        gatewayType,
         hasUserEditedTierMappings,
         id,
         intl,
         isEditDataLoaded,
-        isPlanMappingSupported,
-        name,
+        remotePlanLookupKey,
         restApi,
-        roles,
-        scheduledInterval,
-        state.permissions.permissionType,
-        type,
-        validRoles,
-        vhosts,
     ]);
 
     useEffect(() => {
         if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
             return;
         }
-        if (remotePlans.length === 0 || visibleLocalTiers.length === 0) {
+        if (visibleLocalTiers.length === 0) {
+            return;
+        }
+        if (!hasResolvedRemotePlans || remotePlans.length === 0) {
             return;
         }
         const defaultRemotePlan = remotePlans[0];
         setTierMappings((prev) => {
-            const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
             const existingMappingsByTier = new Map(
                 prev.map((mapping) => [mapping.localTierName, mapping]),
             );
@@ -1217,10 +1244,7 @@ function AddEditGWEnvironment(props) {
             );
             const normalizedVisibleMappings = visibleLocalTiers.map((tier) => {
                 const existing = existingMappingsByTier.get(tier.name);
-                if (
-                    existing?.remotePlanReference?.id
-                    && remotePlanIds.has(existing.remotePlanReference.id)
-                ) {
+                if (existing?.remotePlanReference) {
                     return existing;
                 }
                 return {
@@ -1237,38 +1261,13 @@ function AddEditGWEnvironment(props) {
         setHasInitializedDefaultMappings(true);
     }, [
         hasInitializedDefaultMappings,
+        hasResolvedRemotePlans,
         hasUserEditedTierMappings,
         isPlanMappingSupported,
         remotePlans,
         visibleLocalTierNames,
         visibleLocalTiers,
     ]);
-
-    useEffect(() => {
-        if (!isPlanMappingSupported || !hasUserEditedTierMappings || remotePlans.length === 0) {
-            return;
-        }
-        const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
-        const fallbackPlan = remotePlans[0];
-        setTierMappings((prev) => {
-            let changed = false;
-            const next = prev.map((mapping) => {
-                if (!visibleLocalTierNames.has(mapping.localTierName)) {
-                    return mapping;
-                }
-                const mappedPlanId = mapping?.remotePlanReference?.id;
-                if (mappedPlanId && !remotePlanIds.has(mappedPlanId)) {
-                    changed = true;
-                    return {
-                        ...mapping,
-                        remotePlanReference: fallbackPlan,
-                    };
-                }
-                return mapping;
-            });
-            return changed ? next : prev;
-        });
-    }, [hasUserEditedTierMappings, isPlanMappingSupported, remotePlans, visibleLocalTierNames]);
 
     const getLocalApiTypeLabel = (apiType) => {
         switch (apiType) {
@@ -2496,144 +2495,6 @@ function AddEditGWEnvironment(props) {
                                             <StyledHr />
                                         </Box>
                                     </Grid>
-                                    {isPlanMappingSupported && (
-                                        <>
-                                            <Grid item xs={12} md={12} lg={3}>
-                                                <Box
-                                                    display='flex'
-                                                    flexDirection='row'
-                                                    alignItems='center'
-                                                >
-                                                    <Box flex='1'>
-                                                        <Typography
-                                                            color='inherit'
-                                                            variant='subtitle2'
-                                                            component='div'
-                                                        >
-                                                            <FormattedMessage
-                                                                id='GatewayEnvironments.PlanMapping.title'
-                                                                defaultMessage='Plan Mapping'
-                                                            />
-                                                        </Typography>
-                                                        <Typography
-                                                            color='inherit'
-                                                            variant='caption'
-                                                            component='p'
-                                                        >
-                                                            <FormattedMessage
-                                                                id='GatewayEnvironments.PlanMapping.description'
-                                                                defaultMessage={'Map local WSO2 subscription'
-                                                                    + 'tiers to remote gateway plans.'}
-                                                            />
-                                                        </Typography>
-                                                        <Typography
-                                                            color='inherit'
-                                                            variant='caption'
-                                                            component='p'
-                                                        >
-                                                            <FormattedMessage
-                                                                id={
-                                                                    'GatewayEnvironments.PlanMapping'
-                                                                    + '.subscribableOnly.description'
-                                                                }
-                                                                defaultMessage={
-                                                                    'Only subscribable local plans are listed.'
-                                                                    + ' Subscriptionless plans are shown only'
-                                                                    + ' when the gateway supports them.'
-                                                                }
-                                                            />
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={12} md={12} lg={9}>
-                                                <Box component='div' m={1}>
-                                                    <Box display='flex' alignItems='center' mb={2}>
-                                                        {loadingRemotePlans && (
-                                                            <CircularProgress size={14} sx={{ mr: 0.75 }} />
-                                                        )}
-                                                        {remotePlansFetchError && (
-                                                            <Typography variant='caption' color='error' sx={{ mr: 1 }}>
-                                                                {remotePlansFetchError}
-                                                            </Typography>
-                                                        )}
-                                                        {remotePlans.length > 0 && (
-                                                            <Typography variant='caption'>
-                                                                <FormattedMessage
-                                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
-                                                                    defaultMessage='{count} remote plans loaded'
-                                                                    values={{ count: remotePlans.length }}
-                                                                />
-                                                            </Typography>
-                                                        )}
-                                                    </Box>
-                                                    {groupedLocalTiers.length > 0 && (
-                                                        <Table size='small'>
-                                                            <TableHead>
-                                                                <TableRow>
-                                                                    <TableCell>
-                                                                        <FormattedMessage
-                                                                            id={
-                                                                                'GatewayEnvironments.PlanMapping'
-                                                                                + '.localTier'
-                                                                            }
-                                                                            defaultMessage='Local Tier'
-                                                                        />
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <FormattedMessage
-                                                                            id={
-                                                                                'GatewayEnvironments.PlanMapping'
-                                                                                + '.remotePlan'
-                                                                            }
-                                                                            defaultMessage='Remote Plan'
-                                                                        />
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            </TableHead>
-                                                            <TableBody>
-                                                                {groupedLocalTiers.map((group) => (
-                                                                    <React.Fragment key={group.apiType}>
-                                                                        <TableRow>
-                                                                            <TableCell colSpan={2}>
-                                                                                <Typography variant='subtitle2'>
-                                                                                    {
-                                                                                        getLocalApiTypeLabel(
-                                                                                            group.apiType,
-                                                                                        )
-                                                                                    }
-                                                                                </Typography>
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                        {group.tiers.map(renderTierMappingRow)}
-                                                                    </React.Fragment>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    )}
-                                                    {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
-                                                        <Typography variant='caption'>
-                                                            <FormattedMessage
-                                                                id={
-                                                                    'GatewayEnvironments.PlanMapping'
-                                                                    + '.noCompatibleLocalPlans'
-                                                                }
-                                                                defaultMessage={
-                                                                    'No local subscription plans match the'
-                                                                    + ' supported API types of this gateway.'
-                                                                }
-                                                            />
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            </Grid>
-                                            <Grid item xs={12}>
-                                                <Box marginTop={2} marginBottom={2}>
-                                                    <StyledHr />
-                                                </Box>
-                                            </Grid>
-                                        </>
-                                    )}
                                     <Grid item xs={12} md={12} lg={3}>
                                         <Box
                                             display='flex'
@@ -3248,6 +3109,139 @@ function AddEditGWEnvironment(props) {
                                             <StyledHr />
                                         </Box>
                                     </Grid>
+                                    {isPlanMappingSupported && (
+                                        <>
+                                            <Grid item xs={12} md={12} lg={3}>
+                                                <Box
+                                                    display='flex'
+                                                    flexDirection='row'
+                                                    alignItems='center'
+                                                >
+                                                    <Box flex='1'>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='subtitle2'
+                                                            component='div'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.title'
+                                                                defaultMessage='Plan Mapping'
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.description'
+                                                                defaultMessage={'Map local WSO2 subscription'
+                                                                    + 'tiers to remote gateway plans.'}
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.subscribableOnly.description'
+                                                                }
+                                                                defaultMessage={
+                                                                    'Only subscribable local plans are listed.'
+                                                                    + ' Subscriptionless plans are shown only'
+                                                                    + ' when the gateway supports them.'
+                                                                }
+                                                            />
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={12} md={12} lg={9}>
+                                                <Box component='div' m={1}>
+                                                    <Box display='flex' alignItems='center' mb={2}>
+                                                        {loadingRemotePlans && (
+                                                            <CircularProgress size={14} sx={{ mr: 0.75 }} />
+                                                        )}
+                                                        {remotePlansFetchError && (
+                                                            <Typography variant='caption' color='error' sx={{ mr: 1 }}>
+                                                                {remotePlansFetchError}
+                                                            </Typography>
+                                                        )}
+                                                        {remotePlans.length > 0 && (
+                                                            <Typography variant='caption'>
+                                                                <FormattedMessage
+                                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
+                                                                    defaultMessage='{count} remote plans loaded'
+                                                                    values={{ count: remotePlans.length }}
+                                                                />
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                    {groupedLocalTiers.length > 0 && (
+                                                        <Table size='small'>
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.localTier'
+                                                                            }
+                                                                            defaultMessage='Local Tier'
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id={
+                                                                                'GatewayEnvironments.PlanMapping'
+                                                                                + '.remotePlan'
+                                                                            }
+                                                                            defaultMessage='Remote Plan'
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {groupedLocalTiers.map((group) => (
+                                                                    <React.Fragment key={group.apiType}>
+                                                                        <TableRow>
+                                                                            <TableCell colSpan={2}>
+                                                                                <Typography variant='subtitle2'>
+                                                                                    {
+                                                                                        getLocalApiTypeLabel(
+                                                                                            group.apiType,
+                                                                                        )
+                                                                                    }
+                                                                                </Typography>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                        {group.tiers.map(renderTierMappingRow)}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    )}
+                                                    {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
+                                                        <Typography variant='caption'>
+                                                            <FormattedMessage
+                                                                id={
+                                                                    'GatewayEnvironments.PlanMapping'
+                                                                    + '.noCompatibleLocalPlans'
+                                                                }
+                                                                defaultMessage={
+                                                                    'No local subscription plans match the'
+                                                                    + ' supported API types of this gateway.'
+                                                                }
+                                                            />
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Grid>
+                                        </>
+                                    )}
                                 </>
                             )}
                             <Grid item xs={12} mb={2}>

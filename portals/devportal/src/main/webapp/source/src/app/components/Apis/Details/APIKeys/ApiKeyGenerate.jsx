@@ -235,6 +235,9 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
 
     // Regenerate handlers
     const handleRegenerateKey = (keyData) => {
+        if (isRegenerating) {
+            return;
+        }
         setIsRegenerating(true);
         setRegeneratingKeyUUID(keyData.keyUUID);
         const restApi = new API();
@@ -279,7 +282,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
                 size='small'
                 startIcon={isThisKeyRegenerating ? <CircularProgress size={16} /> : <Refresh />}
                 onClick={() => handleRegenerateKey(keyData)}
-                disabled={isThisKeyRegenerating}
+                disabled={isRegenerating}
             >
                 {isThisKeyRegenerating ? (
                     <FormattedMessage id='Apis.Details.APIKeys.ApiKeyGenerate.button.regenerating' defaultMessage='Regenerating...' />

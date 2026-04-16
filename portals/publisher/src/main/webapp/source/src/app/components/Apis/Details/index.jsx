@@ -1364,9 +1364,6 @@ class Details extends Component {
                                             render={(props) => <CreateNewVersion {...props} />}
                                         />
                                     )}
-
-                                    <Route path={Details.subPaths.SUBSCRIPTIONS} render={(props) =>
-                                        <Subscriptions {...props} />} />
                                     {settings && settings.gatewayFeatureCatalog
                                         .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
                                         .monetization.includes("monetization") &&

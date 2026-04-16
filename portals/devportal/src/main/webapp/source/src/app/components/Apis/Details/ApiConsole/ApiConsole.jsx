@@ -449,6 +449,9 @@ class ApiConsole extends React.Component {
         if (api.advertiseInfo && api.advertiseInfo.advertised) {
             return advAuthHeaderValue;
         }
+        if (api.gatewayVendor && api.gatewayVendor !== 'wso2' && securitySchemeType !== 'API-KEY') {
+            return advAuthHeaderValue;
+        }
         if (securitySchemeType === 'BASIC') {
             const credentials = username + ':' + password;
             return btoa(credentials);

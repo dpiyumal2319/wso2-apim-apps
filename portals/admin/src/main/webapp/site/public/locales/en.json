@@ -552,8 +552,6 @@
   "GatewayEnvironments.AddEditGWEnvironment.form.platform.base.url.empty": "URL is Empty",
   "GatewayEnvironments.AddEditGWEnvironment.form.platform.base.url.help": "The base URL where your gateway will be accessible",
   "GatewayEnvironments.AddEditGWEnvironment.form.platform.base.url.invalid": "Invalid URL",
-  "GatewayEnvironments.AddEditGWEnvironment.form.platform.version": "Gateway Version",
-  "GatewayEnvironments.AddEditGWEnvironment.form.platform.version.help": "Select the gateway version for quick-start setup.",
   "GatewayEnvironments.AddEditGWEnvironment.form.type.help": "Select Gateway Environment Type",
   "GatewayEnvironments.AddEditGWEnvironment.form.type.helper.text": "Supported Key Type of the Gateway Environment",
   "GatewayEnvironments.AddEditGWEnvironment.form.type.hybrid.option": "Hybrid",
@@ -600,7 +598,6 @@
   "GatewayEnvironments.PlanMapping.fetch.pending.error": "Please wait until remote plans are loaded before saving.",
   "GatewayEnvironments.PlanMapping.localTier": "Local Tier",
   "GatewayEnvironments.PlanMapping.noCompatibleLocalPlans": "No local subscription plans match the supported API types of this gateway.",
-  "GatewayEnvironments.PlanMapping.noMapping": "No mapping",
   "GatewayEnvironments.PlanMapping.plansLoaded": "{count} remote plans loaded",
   "GatewayEnvironments.PlanMapping.remotePlan": "Remote Plan",
   "GatewayEnvironments.PlanMapping.subscribableOnly.description": "Only subscribable local plans are listed. Subscriptionless plans are shown only when the gateway supports them.",
@@ -616,7 +613,6 @@
   "Gateways.AddEditGateway.platform.field.description": "Description",
   "Gateways.AddEditGateway.platform.field.gateway.name": "Gateway Name",
   "Gateways.AddEditGateway.platform.field.url": "URL",
-  "Gateways.AddEditGateway.platform.field.version": "Gateway Version",
   "Gateways.AddEditGateway.platform.name.required": "Gateway name is required.",
   "Gateways.AddEditGateway.platform.status.active": "Active",
   "Gateways.AddEditGateway.platform.status.inactive": "Inactive",
@@ -1475,5 +1471,6 @@
   "error.list.404": "404 : The page cannot be found.",
   "error.list.404.description": "The page you are looking for might have been removed, had its name changed or is temporarily unavailable.",
   "error.list.500": "500 : The page cannot be displayed.",
-  "error.list.500.description": "The server encountered an internal error or misconfiguration and was unable to complete your request."
+  "error.list.500.description": "The server encountered an internal error or misconfiguration and was unable to complete your request.",
+  "yFSgyI": "No mapping"
 }
