@@ -1289,10 +1289,7 @@ class Details extends Component {
                                         const { gatewayFeatureCatalog } = settings;
                                         const gatewayType = api.gatewayType || 'wso2/synapse';
                                         const { subscriptions } = gatewayFeatureCatalog.gatewayFeatures[gatewayType];
-                                        // Handle both array (legacy) and object (new schema) formats
-                                        return Array.isArray(subscriptions)
-                                            ? subscriptions.includes("subscriptions")
-                                            : subscriptions?.supported;
+                                        return subscriptions.includes('subscriptions');
                                     })() &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}

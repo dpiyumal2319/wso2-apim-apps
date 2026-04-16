@@ -18,22 +18,13 @@
 
 describe('RuntimeConfiguration componentValidator derivation', () => {
     const deriveRuntimeFeatures = (gatewayConfig) => {
-        const runtimeFeatures = [...(gatewayConfig.runtime || [])];
-        if (gatewayConfig.apiKeys?.supported && !runtimeFeatures.includes('apikey')) {
-            runtimeFeatures.push('apikey');
-        }
-        return runtimeFeatures;
+        return [...(gatewayConfig.runtime || [])];
     };
 
-    describe('apikey flag derivation from apiKeys.supported', () => {
-        test('should add apikey when apiKeys.supported=true and apikey not in runtime', () => {
+    describe('apikey capability derived from runtime bucket', () => {
+        test('should keep apikey when runtime includes it', () => {
             const awsConfig = {
-                runtime: ['transportsHTTP', 'transportsHTTPS', 'oauth2'],
-                apiKeys: {
-                    supported: true,
-                    federated: true,
-                    operations: ['issue', 'regenerate', 'revoke'],
-                },
+                runtime: ['transportsHTTP', 'transportsHTTPS', 'oauth2', 'apikey'],
             };
 
             const result = deriveRuntimeFeatures(awsConfig);
@@ -43,15 +34,9 @@ describe('RuntimeConfiguration componentValidator derivation', () => {
             expect(result).toContain('transportsHTTP');
         });
 
-        test('should add apikey when apiKeys.supported=true', () => {
+        test('should keep apikey for federated gateways when runtime includes it', () => {
             const azureConfig = {
-                runtime: ['cors', 'transportsHTTP', 'transportsHTTPS'],
-                apiKeys: {
-                    supported: true,
-                    federated: true,
-                    operations: ['issue', 'regenerate', 'revoke'],
-                    headerName: 'Ocp-Apim-Subscription-Key',
-                },
+                runtime: ['cors', 'transportsHTTP', 'transportsHTTPS', 'apikey'],
             };
 
             const result = deriveRuntimeFeatures(azureConfig);
@@ -63,11 +48,6 @@ describe('RuntimeConfiguration componentValidator derivation', () => {
         test('should not duplicate apikey when already in runtime', () => {
             const kongConfig = {
                 runtime: ['cors', 'transportsHTTP', 'transportsHTTPS', 'oauth2', 'apikey'],
-                apiKeys: {
-                    supported: true,
-                    federated: true,
-                    operations: ['issue', 'regenerate', 'revoke', 'associate', 'dissociate'],
-                },
             };
 
             const result = deriveRuntimeFeatures(kongConfig);
@@ -76,12 +56,9 @@ describe('RuntimeConfiguration componentValidator derivation', () => {
             expect(apikeyCount).toBe(1);
         });
 
-        test('should not add apikey when apiKeys.supported=false', () => {
+        test('should not add apikey when runtime does not include it', () => {
             const envoyConfig = {
                 runtime: ['cors', 'transportsHTTP', 'transportsHTTPS', 'oauth2'],
-                apiKeys: {
-                    supported: false,
-                },
             };
 
             const result = deriveRuntimeFeatures(envoyConfig);
@@ -89,7 +66,7 @@ describe('RuntimeConfiguration componentValidator derivation', () => {
             expect(result).not.toContain('apikey');
         });
 
-        test('should not add apikey when apiKeys object is missing', () => {
+        test('should handle missing apikey capability cleanly', () => {
             const legacyConfig = {
                 runtime: ['transportsHTTP', 'transportsHTTPS'],
             };
@@ -103,33 +80,25 @@ describe('RuntimeConfiguration componentValidator derivation', () => {
         test('should handle empty runtime array', () => {
             const emptyRuntimeConfig = {
                 runtime: [],
-                apiKeys: {
-                    supported: true,
-                },
             };
 
             const result = deriveRuntimeFeatures(emptyRuntimeConfig);
 
-            expect(result).toEqual(['apikey']);
+            expect(result).toEqual([]);
         });
 
         test('should handle undefined runtime array', () => {
-            const undefinedRuntimeConfig = {
-                apiKeys: {
-                    supported: true,
-                },
-            };
+            const undefinedRuntimeConfig = {};
 
             const result = deriveRuntimeFeatures(undefinedRuntimeConfig);
 
-            expect(result).toEqual(['apikey']);
+            expect(result).toEqual([]);
         });
 
         test('should not mutate original runtime array', () => {
             const originalRuntime = ['transportsHTTP'];
             const config = {
                 runtime: originalRuntime,
-                apiKeys: { supported: true },
             };
 
             deriveRuntimeFeatures(config);

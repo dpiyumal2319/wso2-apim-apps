@@ -242,7 +242,6 @@ const SUBSCRIPTIONLESS_LOCAL_POLICIES = new Set([
     'DefaultSubscriptionless',
     'AsyncDefaultSubscriptionless',
 ]);
-
 const normalizeApiType = (apiType) => (apiType || '').toString().trim().toLowerCase();
 
 const resolveLocalPlanApiType = (policy) => {
@@ -455,6 +454,7 @@ function AddEditGWEnvironment(props) {
     const [localTiers, setLocalTiers] = useState([]);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
     const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
+    const [remotePlansReloadTrigger, setRemotePlansReloadTrigger] = useState(0);
     const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
     const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
     const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
@@ -744,14 +744,13 @@ function AddEditGWEnvironment(props) {
         ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
         : null;
     const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
-    const isSubscriptionlessSupported = gatewayConfig?.subscriptionlessSupported === true;
     const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
         .map((apiType) => normalizeApiType(apiType))
         .filter(Boolean);
 
     const visibleLocalTiers = localTiers.filter((tier) => (
         (supportedApiTypes.length === 0 || supportedApiTypes.includes(tier.apiType))
-        && (isSubscriptionlessSupported || !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name))
+        && !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name)
     ));
     const visibleLocalTierNames = new Set(visibleLocalTiers.map((tier) => tier.name));
     const groupOrder = supportedApiTypes.length > 0
@@ -908,6 +907,10 @@ function AddEditGWEnvironment(props) {
         };
     };
 
+    const handleReloadRemotePlans = () => {
+        setRemotePlansReloadTrigger((prev) => prev + 1);
+    };
+
     useEffect(() => {
         if (
             (id && !isEditDataLoaded)
@@ -980,6 +983,7 @@ function AddEditGWEnvironment(props) {
         state.permissions.permissionType,
         state.additionalProperties,
         hasUserEditedTierMappings,
+        remotePlansReloadTrigger,
         restApi,
         intl,
     ]);
@@ -3116,6 +3120,18 @@ function AddEditGWEnvironment(props) {
                                             <Grid item xs={12} md={12} lg={9}>
                                                 <Box component='div' m={1}>
                                                     <Box display='flex' alignItems='center' mb={2}>
+                                                        <Button
+                                                            size='small'
+                                                            variant='outlined'
+                                                            onClick={handleReloadRemotePlans}
+                                                            disabled={loadingRemotePlans}
+                                                            style={{ marginRight: 8 }}
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.reload'
+                                                                defaultMessage='Reload'
+                                                            />
+                                                        </Button>
                                                         {loadingRemotePlans && (
                                                             <CircularProgress size={14} style={{ marginRight: 6 }} />
                                                         )}

@@ -187,10 +187,8 @@ export default function DevelopSectionMenu(props) {
                             route='business-info'
                         />
                         {(() => {
-                            // Handle both array (legacy) and object (new schema) formats
-                            const subscriptionsSupported = Array.isArray(componentValidator.subscriptions)
-                                ? componentValidator.subscriptions.includes("subscriptions")
-                                : componentValidator.subscriptions?.supported;
+                            const subscriptionsSupported = componentValidator.subscriptions
+                                .includes('subscriptions');
                             return subscriptionsSupported && !isAPIProduct;
                         })() && (
                             <LeftMenuItem

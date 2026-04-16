@@ -521,10 +521,6 @@ export default function RuntimeConfiguration() {
             const gatewayConfig = publisherSettings.gatewayFeatureCatalog.gatewayFeatures[gatewayType];
             const runtimeFeatures = [...(gatewayConfig.runtime || [])];
 
-            if (gatewayConfig.apiKeys?.supported && !runtimeFeatures.includes('apikey')) {
-                runtimeFeatures.push('apikey');
-            }
-
             setComponentValidator(runtimeFeatures);
             setEndpointSecurity(gatewayConfig.endpoints);
         }
