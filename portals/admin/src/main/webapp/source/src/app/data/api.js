@@ -584,6 +584,30 @@ class API extends Resource {
     }
 
     /**
+     * Get available remote plans for a Gateway Environment.
+     */
+    getEnvironmentRemotePlans(lookupRequest) {
+        return this.client.then((client) => {
+            const environmentsApi = client.apis['Environments'];
+            const payload = {
+                'Content-Type': 'application/json',
+            };
+            if (environmentsApi.getEnvironmentRemotePlans) {
+                return environmentsApi.getEnvironmentRemotePlans(
+                    payload,
+                    { requestBody: lookupRequest },
+                    this._requestMetaData(),
+                );
+            }
+            return environmentsApi.post_environments_remote_plans(
+                payload,
+                { requestBody: lookupRequest },
+                this._requestMetaData(),
+            );
+        });
+    }
+
+    /**
      * Delete a Gateway Environment
      */
     deleteGatewayEnvironment(id) {
@@ -599,10 +623,10 @@ class API extends Resource {
      * Add a Gateway Environment
      */
     addGatewayEnvironment(name, displayName, type, description, gatewayType, mode, apiDiscoveryScheduledWindow, vhosts, permissions, additionalProperties
-        , provider="wso2",  callback = null) {
+        , provider="wso2", tierMappings=[], callback = null) {
         return this.client.then((client) => {
             const data = { name, displayName, type, description, gatewayType, mode, apiDiscoveryScheduledWindow, vhosts, permissions, additionalProperties
-                , provider };
+                , provider, tierMappings };
             const payload = {
                 'Content-Type': 'application/json',
             };
@@ -618,10 +642,10 @@ class API extends Resource {
      * Update a Gateway Environment
      */
     updateGatewayEnvironment(id, name, displayName, type, description, gatewayType, mode, apiDiscoveryScheduledWindow, vhosts, permissions, additionalProperties
-        , provider="wso2", callback = null) {
+        , provider="wso2", tierMappings=[], callback = null) {
         return this.client.then((client) => {
             const data = { name, displayName, type, description, gatewayType, mode, apiDiscoveryScheduledWindow, vhosts, permissions, additionalProperties
-                , provider };
+                , provider, tierMappings };
             return client.apis['Environments'].put_environments__environmentId_(
                 { environmentId: id },
                 { requestBody: data },

@@ -59,6 +59,11 @@ import AddEditVhost from 'AppComponents/GatewayEnvironments/AddEditVhost';
 import GatewayConfiguration from 'AppComponents/GatewayEnvironments/GatewayConfiguration';
 import cloneDeep from 'lodash.clonedeep';
 import CircularProgress from '@mui/material/CircularProgress';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import GatewayTypeOptionCard from './GatewayTypeOptionCard';
 import QuickStartGuide from './UniversalGatewayQuickStartGuide';
 import {
@@ -66,16 +71,13 @@ import {
     buildPermissionsDTO,
     buildVhostDTO,
     createDefaultVhost,
-    getGatewayConfiguredVersion,
     getGatewayProvider,
     getGatewayStatusChipProps,
     getPlatformGatewayUrl,
-    getUniversalGatewayVersions,
     getVhostFromBaseUrl,
     normalizeBaseUrl,
     WSO2_GATEWAY_TYPES,
     WSO2_SELF_HOSTED_GATEWAY_TYPES,
-    setGatewayVersionInProperties,
     toPlatformGatewayName,
 } from './UniversalGatewayUtils';
 
@@ -229,6 +231,27 @@ const StyledContentBase = styled(ContentBase)(({ theme }) => ({
 }));
 
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
+
+const LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE = {
+    REQUESTCOUNTLIMIT: 'rest',
+    EVENTCOUNTLIMIT: 'async',
+    AIAPIQUOTALIMIT: 'ai-api',
+};
+const NON_SUBSCRIBABLE_LOCAL_POLICIES = new Set(['Unauthenticated']);
+const SUBSCRIPTIONLESS_LOCAL_POLICIES = new Set(['DefaultSubscriptionless', 'AsyncDefaultSubscriptionless']);
+
+const normalizeApiType = (apiType) => (apiType || '').toString().trim().toLowerCase();
+
+const resolveLocalPlanApiType = (policy) => {
+    const limitType = (policy?.defaultLimit?.type || '').toString().trim().toUpperCase();
+    return LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE[limitType] || 'other';
+};
+
+const isMappableLocalPolicy = (policy) => (
+    !!policy
+    && !!policy.policyName
+    && !NON_SUBSCRIBABLE_LOCAL_POLICIES.has(policy.policyName)
+);
 
 const getNameValidationError = (value, formatMessage) => {
     if (value === undefined) {
@@ -414,8 +437,16 @@ function AddEditGWEnvironment(props) {
     const [supportedModes, setSupportedModes] = useState([]);
     const [validating, setValidating] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [tierMappings, setTierMappings] = useState([]);
+    const [remotePlans, setRemotePlans] = useState([]);
+    const [localTiers, setLocalTiers] = useState([]);
+    const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
+    const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
+    const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
+    const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
+    const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
+    const [isEditDataLoaded, setIsEditDataLoaded] = useState(!id);
     const { gatewayTypes } = settings;
-    const gatewayVersions = useMemo(() => getUniversalGatewayVersions(settings), [settings]);
     const {
         match: {
             params: { id },
@@ -513,9 +544,6 @@ function AddEditGWEnvironment(props) {
     const [
         platformDescriptionDraft, setPlatformDescriptionDraft,
     ] = useState('');
-    const [platformGatewayVersion, setPlatformGatewayVersion] = useState(
-        gatewayVersions[gatewayVersions.length - 1],
-    );
 
     const [state, dispatch] = useReducer(reducer, initialState);
     const {
@@ -548,6 +576,7 @@ function AddEditGWEnvironment(props) {
             setPlatformGateway(null);
             setPlatformHeaderEditMode(false);
             setShowPlatformTokenCommands(false);
+            setIsEditDataLoaded(false);
             restApi
                 .getGatewayEnvironment(id)
                 .then(async (result) => {
@@ -570,6 +599,13 @@ function AddEditGWEnvironment(props) {
                         permissions: body.permissions || initialPermissions,
                         additionalProperties: tempAdditionalProperties || {},
                     };
+                    setInitialAdditionalProperties(tempAdditionalProperties || {});
+                    if (body.tierMappings && body.tierMappings.length > 0) {
+                        setTierMappings(body.tierMappings);
+                        setHasInitializedDefaultMappings(true);
+                    } else {
+                        setTierMappings([]);
+                    }
                     if (platformGatewayId) {
                         dispatch({ field: 'editDetails', value: newState });
                         setIsPlatformGatewayEdit(true);
@@ -581,7 +617,6 @@ function AddEditGWEnvironment(props) {
                         );
                         if (matchedGateway) {
                             setPlatformGateway(matchedGateway);
-                            setPlatformGatewayVersion(getGatewayConfiguredVersion(matchedGateway, settings));
                         } else {
                             setPlatformGateway({
                                 id: platformGatewayId,
@@ -589,7 +624,6 @@ function AddEditGWEnvironment(props) {
                                 displayName: body.displayName,
                                 isActive: null,
                             });
-                            setPlatformGatewayVersion(gatewayVersions[gatewayVersions.length - 1]);
                         }
                         return;
                     }
@@ -603,10 +637,14 @@ function AddEditGWEnvironment(props) {
                 .finally(() => {
                     setPlatformGatewayLoading(false);
                     setIsGatewayEditTypeResolved(true);
+                    setIsEditDataLoaded(true);
                 });
             setIsEditMode(true);
         } else {
             setIsGatewayEditTypeResolved(true);
+            setIsEditDataLoaded(true);
+            setTierMappings([]);
+            setInitialAdditionalProperties({});
             const newInitialState = {
                 name: '',
                 displayName: '',
@@ -628,9 +666,8 @@ function AddEditGWEnvironment(props) {
             };
             setInitialState(newInitialState);
             dispatch({ field: 'editDetails', value: newInitialState });
-            setPlatformGatewayVersion(gatewayVersions[gatewayVersions.length - 1]);
         }
-    }, [gatewayVersions, id, initialPermissions, restApi, initialGatewayType, settings]);
+    }, [id, initialPermissions, restApi, initialGatewayType]);
 
     useEffect(() => {
         if (permissions && permissions.roles) {
@@ -644,16 +681,12 @@ function AddEditGWEnvironment(props) {
                 state.displayName || platformGateway?.displayName || '',
             );
             setPlatformDescriptionDraft(state.description || '');
-            if (platformGateway) {
-                setPlatformGatewayVersion(getGatewayConfiguredVersion(platformGateway, settings));
-            }
         }
     }, [
         platformHeaderEditMode,
         platformGateway,
         state.description,
         state.displayName,
-        settings,
     ]);
 
     useEffect(() => {
@@ -672,6 +705,68 @@ function AddEditGWEnvironment(props) {
             setSupportedModes(config.supportedModes || []);
         }
     }, [gatewayType]);
+
+    useEffect(() => {
+        restApi.getSubscritionPolicyList().then((result) => {
+            const { body } = result;
+            if (body?.list) {
+                setLocalTiers(body.list
+                    .filter((policy) => isMappableLocalPolicy(policy))
+                    .map((policy) => ({
+                        name: policy.policyName,
+                        displayName: policy.displayName || policy.policyName,
+                        apiType: resolveLocalPlanApiType(policy),
+                    })));
+            }
+        }).catch(() => {
+            // Non-critical; plan mapping section will remain empty.
+        });
+    }, [restApi]);
+
+    useEffect(() => {
+        setHasInitializedDefaultMappings(false);
+        setHasUserEditedTierMappings(false);
+        setRemotePlansFetchError('');
+    }, [id]);
+
+    const handleTierMappingChange = (localTierName, remotePlanReference) => {
+        setHasUserEditedTierMappings(true);
+        setHasInitializedDefaultMappings(true);
+        setTierMappings((prev) => {
+            const existing = prev.filter((mapping) => mapping.localTierName !== localTierName);
+            if (remotePlanReference) {
+                return [...existing, { localTierName, remotePlanReference }];
+            }
+            return existing;
+        });
+    };
+
+    const getMappedPlanId = (localTierName) => {
+        const mapping = tierMappings.find((item) => item.localTierName === localTierName);
+        return mapping ? (mapping.remotePlanReference?.id || '') : '';
+    };
+
+    const gatewayConfig = settings.gatewayConfiguration
+        ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
+        : null;
+    const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
+    const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
+        .map((apiType) => normalizeApiType(apiType))
+        .filter(Boolean);
+    const visibleLocalTiers = localTiers.filter((tier) => (
+        (supportedApiTypes.length === 0 || supportedApiTypes.includes(tier.apiType))
+        && !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name)
+    ));
+    const visibleLocalTierNames = new Set(visibleLocalTiers.map((tier) => tier.name));
+    const groupOrder = supportedApiTypes.length > 0
+        ? supportedApiTypes
+        : [...new Set(visibleLocalTiers.map((tier) => tier.apiType))];
+    const groupedLocalTiers = groupOrder
+        .map((apiType) => ({
+            apiType,
+            tiers: visibleLocalTiers.filter((tier) => tier.apiType === apiType),
+        }))
+        .filter((group) => group.tiers.length > 0);
 
     let permissionType = '';
     if (permissions) {
@@ -744,9 +839,6 @@ function AddEditGWEnvironment(props) {
             state.displayName || platformGateway?.displayName || '',
         );
         setPlatformDescriptionDraft(state.description || '');
-        if (platformGateway) {
-            setPlatformGatewayVersion(getGatewayConfiguredVersion(platformGateway, settings));
-        }
         setPlatformHeaderEditMode(true);
     };
 
@@ -755,9 +847,6 @@ function AddEditGWEnvironment(props) {
             state.displayName || platformGateway?.displayName || '',
         );
         setPlatformDescriptionDraft(state.description || '');
-        if (platformGateway) {
-            setPlatformGatewayVersion(getGatewayConfiguredVersion(platformGateway, settings));
-        }
         setPlatformHeaderEditMode(false);
     };
 
@@ -788,30 +877,6 @@ function AddEditGWEnvironment(props) {
 
         setPlatformHeaderSaving(true);
         try {
-            if (platformGateway?.id) {
-                const updatedProperties = setGatewayVersionInProperties(
-                    platformGateway.properties,
-                    platformGatewayVersion,
-                );
-                const updatedPlatformGatewayResponse = await restApi.updatePlatformGateway(platformGateway.id, {
-                    name: platformGateway.name || name.trim(),
-                    displayName: trimmedDisplayName,
-                    description: trimmedDescription,
-                    vhost: platformGateway.vhost,
-                    properties: updatedProperties,
-                    permissions: platformGateway.permissions,
-                });
-                const updatedPlatformGateway = updatedPlatformGatewayResponse?.body
-                    || updatedPlatformGatewayResponse;
-                if (updatedPlatformGateway) {
-                    setPlatformGateway({
-                        ...platformGateway,
-                        ...updatedPlatformGateway,
-                        properties: updatedPlatformGateway.properties || updatedProperties,
-                    });
-                }
-            }
-
             await restApi.updateGatewayEnvironment(
                 id,
                 name.trim(),
@@ -897,6 +962,89 @@ function AddEditGWEnvironment(props) {
         setAdditionalProperties('platformGatewayBaseUrl', e.target.value);
     };
 
+    const hasGatewayConnectorConfigErrors = (connectorConfigurations) => {
+        for (const connectorConfig of connectorConfigurations) {
+            if (
+                connectorConfig.required
+                && (!additionalProperties[connectorConfig.name]
+                    || additionalProperties[connectorConfig.name] === '')
+            ) {
+                return true;
+            }
+
+            if (
+                connectorConfig.values
+                && connectorConfig.values.length > 0
+                && additionalProperties[connectorConfig.name]
+            ) {
+                const selectedOption = connectorConfig.values.find((option) => {
+                    if (typeof option === 'string') {
+                        return option === additionalProperties[connectorConfig.name];
+                    }
+                    return option.name === additionalProperties[connectorConfig.name];
+                });
+
+                if (
+                    selectedOption
+                    && typeof selectedOption === 'object'
+                    && selectedOption.values
+                ) {
+                    if (hasGatewayConnectorConfigErrors(selectedOption.values)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    const hasConnectorConfigChanged = () => {
+        if (!id) {
+            return true;
+        }
+        const currentProperties = additionalProperties || {};
+        const allKeys = new Set([
+            ...Object.keys(currentProperties),
+            ...Object.keys(initialAdditionalProperties || {}),
+        ]);
+        for (const key of allKeys) {
+            if ((currentProperties[key] || '') !== (initialAdditionalProperties[key] || '')) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const buildRemotePlanLookupEnvironment = () => ({
+        name: name.trim() || 'temp-environment',
+        displayName: displayName || name.trim() || 'temp-environment',
+        type,
+        description,
+        gatewayType,
+        mode: gatewayMode,
+        apiDiscoveryScheduledWindow: scheduledInterval,
+        vhosts: buildVhostDTO(vhosts, gatewayType),
+        permissions: {
+            permissionType: state.permissions.permissionType,
+            roles: roles.concat(validRoles),
+        },
+        additionalProperties: buildAdditionalPropertiesArray(state.additionalProperties),
+        provider: getGatewayProvider(gatewayType),
+    });
+
+    const buildRemotePlanLookupRequest = () => {
+        if (!id) {
+            return { environment: buildRemotePlanLookupEnvironment() };
+        }
+        if (!hasConnectorConfigChanged()) {
+            return { environmentId: id };
+        }
+        return {
+            environmentId: id,
+            environment: buildRemotePlanLookupEnvironment(),
+        };
+    };
+
     const onChange = (e) => {
         if (e.target.name === 'GatewayPermissionRestrict') {
             permissionType = e.target.value;
@@ -918,6 +1066,172 @@ function AddEditGWEnvironment(props) {
             });
         }
     }, [supportedModes]);
+
+    useEffect(() => {
+        if (
+            (id && !isEditDataLoaded)
+            || !isPlanMappingSupported
+            || gatewayType === 'other'
+            || hasGatewayConnectorConfigErrors(gatewayConfigurations)
+        ) {
+            setRemotePlans([]);
+            setLoadingRemotePlans(false);
+            setRemotePlansFetchError('');
+            return () => {};
+        }
+
+        let isCancelled = false;
+        const timer = setTimeout(() => {
+            setLoadingRemotePlans(true);
+            setRemotePlansFetchError('');
+            if (!hasUserEditedTierMappings) {
+                setHasInitializedDefaultMappings(false);
+            }
+            restApi.getEnvironmentRemotePlans(buildRemotePlanLookupRequest())
+                .then((result) => {
+                    if (!isCancelled) {
+                        setRemotePlans(result?.body?.list || []);
+                    }
+                })
+                .catch((error) => {
+                    if (!isCancelled) {
+                        const errorMessage = error?.response?.body?.description
+                            || intl.formatMessage({
+                                id: 'GatewayEnvironments.PlanMapping.fetch.error',
+                                defaultMessage: 'Failed to fetch remote plans from the gateway.',
+                            });
+                        setRemotePlansFetchError(errorMessage);
+                        setRemotePlans([]);
+                    }
+                })
+                .finally(() => {
+                    if (!isCancelled) {
+                        setLoadingRemotePlans(false);
+                    }
+                });
+        }, 400);
+
+        return () => {
+            clearTimeout(timer);
+            isCancelled = true;
+        };
+    }, [
+        additionalProperties,
+        description,
+        displayName,
+        gatewayConfigurations,
+        gatewayMode,
+        gatewayType,
+        hasUserEditedTierMappings,
+        id,
+        intl,
+        isEditDataLoaded,
+        isPlanMappingSupported,
+        name,
+        restApi,
+        roles,
+        scheduledInterval,
+        state.permissions.permissionType,
+        type,
+        validRoles,
+        vhosts,
+    ]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
+            return;
+        }
+        if (remotePlans.length === 0 || visibleLocalTiers.length === 0) {
+            return;
+        }
+        const defaultRemotePlan = remotePlans[0];
+        setTierMappings((prev) => {
+            const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+            const existingMappingsByTier = new Map(
+                prev.map((mapping) => [mapping.localTierName, mapping]),
+            );
+            const hiddenMappings = prev.filter(
+                (mapping) => !visibleLocalTierNames.has(mapping.localTierName),
+            );
+            const normalizedVisibleMappings = visibleLocalTiers.map((tier) => {
+                const existing = existingMappingsByTier.get(tier.name);
+                if (
+                    existing?.remotePlanReference?.id
+                    && remotePlanIds.has(existing.remotePlanReference.id)
+                ) {
+                    return existing;
+                }
+                return {
+                    localTierName: tier.name,
+                    remotePlanReference: defaultRemotePlan,
+                };
+            });
+            const nextMappings = [...hiddenMappings, ...normalizedVisibleMappings];
+            if (JSON.stringify(prev) === JSON.stringify(nextMappings)) {
+                return prev;
+            }
+            return nextMappings;
+        });
+        setHasInitializedDefaultMappings(true);
+    }, [
+        hasInitializedDefaultMappings,
+        hasUserEditedTierMappings,
+        isPlanMappingSupported,
+        remotePlans,
+        visibleLocalTierNames,
+        visibleLocalTiers,
+    ]);
+
+    useEffect(() => {
+        if (!isPlanMappingSupported || !hasUserEditedTierMappings || remotePlans.length === 0) {
+            return;
+        }
+        const remotePlanIds = new Set(remotePlans.map((plan) => plan.id));
+        const fallbackPlan = remotePlans[0];
+        setTierMappings((prev) => {
+            let changed = false;
+            const next = prev.map((mapping) => {
+                if (!visibleLocalTierNames.has(mapping.localTierName)) {
+                    return mapping;
+                }
+                const mappedPlanId = mapping?.remotePlanReference?.id;
+                if (mappedPlanId && !remotePlanIds.has(mappedPlanId)) {
+                    changed = true;
+                    return {
+                        ...mapping,
+                        remotePlanReference: fallbackPlan,
+                    };
+                }
+                return mapping;
+            });
+            return changed ? next : prev;
+        });
+    }, [hasUserEditedTierMappings, isPlanMappingSupported, remotePlans, visibleLocalTierNames]);
+
+    const getLocalApiTypeLabel = (apiType) => {
+        switch (apiType) {
+            case 'rest':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.rest',
+                    defaultMessage: 'REST APIs',
+                });
+            case 'async':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.async',
+                    defaultMessage: 'Async APIs',
+                });
+            case 'ai-api':
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.ai',
+                    defaultMessage: 'AI APIs',
+                });
+            default:
+                return intl.formatMessage({
+                    id: 'GatewayEnvironments.PlanMapping.apiType.other',
+                    defaultMessage: 'Other APIs',
+                });
+        }
+    };
 
     /* const getBorderColor = (gatewayTypeNew) => {
         return gatewayType === gatewayTypeNew
@@ -1128,6 +1442,31 @@ function AddEditGWEnvironment(props) {
         const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(
             state.additionalProperties,
         );
+        const filteredTierMappings = isPlanMappingSupported
+            ? tierMappings.filter((mapping) => (
+                !!mapping
+                && !!mapping.localTierName
+                && visibleLocalTierNames.has(mapping.localTierName)
+            ))
+            : [];
+
+        if (isPlanMappingSupported) {
+            if (loadingRemotePlans) {
+                Alert.error(
+                    intl.formatMessage({
+                        id: 'GatewayEnvironments.PlanMapping.fetch.pending.error',
+                        defaultMessage: 'Please wait until remote plans are loaded before saving.',
+                    }),
+                );
+                setSaving(false);
+                return false;
+            }
+            if (remotePlansFetchError) {
+                Alert.error(remotePlansFetchError);
+                setSaving(false);
+                return false;
+            }
+        }
 
         let promiseAPICall;
         if (!id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform) {
@@ -1146,7 +1485,6 @@ function AddEditGWEnvironment(props) {
                     gatewayController: {
                         enabled: true,
                         baseUrl: normalizedBaseUrl,
-                        version: platformGatewayVersion,
                     },
                 },
                 permissions: {
@@ -1169,6 +1507,7 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
+                filteredTierMappings,
             );
         } else {
             // assign the create promise to the promiseAPICall
@@ -1184,6 +1523,7 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
+                filteredTierMappings,
             );
         }
 
@@ -1258,7 +1598,7 @@ function AddEditGWEnvironment(props) {
         } else if (value === CONSTS.GATEWAY_TYPE.regular) {
             return 'Universal Gateway - Classic';
         } else if (value === CONSTS.GATEWAY_TYPE.apk) {
-            return 'Kubernetes Gateway v1.3';
+            return 'Kubernetes Gateway';
         } else {
             return value + ' Gateway';
         }
@@ -1485,31 +1825,6 @@ function AddEditGWEnvironment(props) {
                                                             platformHeaderSaving
                                                         }
                                                     />
-                                                    <FormControl fullWidth size='small'>
-                                                        <InputLabel>
-                                                            {intl.formatMessage({
-                                                                id: 'Gateways.AddEditGateway.platform.field.version',
-                                                                defaultMessage: 'Gateway Version',
-                                                            })}
-                                                        </InputLabel>
-                                                        <Select
-                                                            value={platformGatewayVersion}
-                                                            label={intl.formatMessage({
-                                                                id: 'Gateways.AddEditGateway.platform.field.version',
-                                                                defaultMessage: 'Gateway Version',
-                                                            })}
-                                                            onChange={(event) => {
-                                                                setPlatformGatewayVersion(event.target.value);
-                                                            }}
-                                                            disabled={platformHeaderSaving}
-                                                        >
-                                                            {gatewayVersions.map((version) => (
-                                                                <MenuItem key={version} value={version}>
-                                                                    {version}
-                                                                </MenuItem>
-                                                            ))}
-                                                        </Select>
-                                                    </FormControl>
                                                 </Box>
                                                 <Box className={classes.platformEditActions}>
                                                     <IconButton
@@ -1583,14 +1898,6 @@ function AddEditGWEnvironment(props) {
                                                             defaultMessage:
                                                                 'No description provided.',
                                                         })}
-                                                </Typography>
-                                                <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
-                                                    {intl.formatMessage({
-                                                        id: 'Gateways.AddEditGateway.platform.field.version',
-                                                        defaultMessage: 'Gateway Version',
-                                                    })}
-                                                    :
-                                                    {platformGatewayVersion}
                                                 </Typography>
                                             </>
                                         )}
@@ -1976,86 +2283,49 @@ function AddEditGWEnvironment(props) {
                                     />
                                     {gatewayType
                                         === CONSTS.GATEWAY_TYPE.apiPlatform && (
-                                        <>
-                                            <TextField
-                                                id='platformGatewayBaseUrl'
-                                                margin='dense'
-                                                name='platformGatewayBaseUrl'
-                                                label={(
-                                                    <span>
-                                                        <FormattedMessage
-                                                            id={
-                                                                'GatewayEnvironments.AddEditGWEnvironment'
-                                                                + '.form.platform.base.url'
-                                                            }
-                                                            defaultMessage='URL'
-                                                        />
-                                                        <StyledSpan>*</StyledSpan>
-                                                    </span>
-                                                )}
-                                                placeholder='https://gateway.example.com:8443'
-                                                fullWidth
-                                                variant='outlined'
-                                                value={platformGatewayBaseUrl}
-                                                disabled={isReadOnly}
-                                                onChange={
-                                                    handlePlatformBaseUrlChange
-                                                }
-                                                error={hasErrors(
+                                        <TextField
+                                            id='platformGatewayBaseUrl'
+                                            margin='dense'
+                                            name='platformGatewayBaseUrl'
+                                            label={(
+                                                <span>
+                                                    <FormattedMessage
+                                                        id={
+                                                            'GatewayEnvironments.AddEditGWEnvironment'
+                                                            + '.form.platform.base.url'
+                                                        }
+                                                        defaultMessage='URL'
+                                                    />
+                                                    <StyledSpan>*</StyledSpan>
+                                                </span>
+                                            )}
+                                            placeholder='https://gateway.example.com:8443'
+                                            fullWidth
+                                            variant='outlined'
+                                            value={platformGatewayBaseUrl}
+                                            disabled={isReadOnly}
+                                            onChange={
+                                                handlePlatformBaseUrlChange
+                                            }
+                                            error={hasErrors(
+                                                'platformGatewayBaseUrl',
+                                                platformGatewayBaseUrl,
+                                                validating,
+                                            )}
+                                            helperText={
+                                                hasErrors(
                                                     'platformGatewayBaseUrl',
                                                     platformGatewayBaseUrl,
                                                     validating,
-                                                )}
-                                                helperText={
-                                                    hasErrors(
-                                                        'platformGatewayBaseUrl',
-                                                        platformGatewayBaseUrl,
-                                                        validating,
-                                                    )
-                                                    || intl.formatMessage({
-                                                        id: 'GatewayEnvironments.AddEditGWEnvironment'
-                                                            + '.form.platform.base.url.help',
-                                                        defaultMessage:
-                                                            'The base URL where your gateway will be accessible',
-                                                    })
-                                                }
-                                            />
-                                            <FormControl fullWidth margin='dense'>
-                                                <InputLabel>
-                                                    <FormattedMessage
-                                                        id={'GatewayEnvironments.AddEditGWEnvironment'
-                                                            + '.form.platform.version'}
-                                                        defaultMessage='Gateway Version'
-                                                    />
-                                                </InputLabel>
-                                                <Select
-                                                    value={platformGatewayVersion}
-                                                    label={intl.formatMessage({
-                                                        id: 'GatewayEnvironments.AddEditGWEnvironment'
-                                                            + '.form.platform.version',
-                                                        defaultMessage: 'Gateway Version',
-                                                    })}
-                                                    onChange={(event) => {
-                                                        setPlatformGatewayVersion(event.target.value);
-                                                    }}
-                                                    disabled={isReadOnly || saving}
-                                                >
-                                                    {gatewayVersions.map((version) => (
-                                                        <MenuItem key={version} value={version}>
-                                                            {version}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                                <FormHelperText>
-                                                    <FormattedMessage
-                                                        id={'GatewayEnvironments.AddEditGWEnvironment'
-                                                            + '.form.platform.version.help'}
-                                                        defaultMessage={'Select the gateway version'
-                                                            + ' for quick-start setup.'}
-                                                    />
-                                                </FormHelperText>
-                                            </FormControl>
-                                        </>
+                                                )
+                                                || intl.formatMessage({
+                                                    id: 'GatewayEnvironments.AddEditGWEnvironment.form.platform.base.'
+                                                        + 'url.help',
+                                                    defaultMessage:
+                                                        'The base URL where your gateway will be accessible',
+                                                })
+                                            }
+                                        />
                                     )}
                                 </Box>
                             </Grid>
@@ -2164,6 +2434,183 @@ function AddEditGWEnvironment(props) {
                                             <StyledHr />
                                         </Box>
                                     </Grid>
+                                    {isPlanMappingSupported && (
+                                        <>
+                                            <Grid item xs={12} md={12} lg={3}>
+                                                <Box
+                                                    display='flex'
+                                                    flexDirection='row'
+                                                    alignItems='center'
+                                                >
+                                                    <Box flex='1'>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='subtitle2'
+                                                            component='div'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.title'
+                                                                defaultMessage='Plan Mapping'
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.description'
+                                                                defaultMessage={'Map local WSO2 subscription'
+                                                                    + 'tiers to remote gateway plans.'}
+                                                            />
+                                                        </Typography>
+                                                        <Typography
+                                                            color='inherit'
+                                                            variant='caption'
+                                                            component='p'
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.subscribableOnly.description'
+                                                                defaultMessage={'Only subscribable local plans are listed.'
+                                                                    + ' Subscriptionless plans are shown only'
+                                                                    + ' when the gateway supports them.'}
+                                                            />
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={12} md={12} lg={9}>
+                                                <Box component='div' m={1}>
+                                                    <Box display='flex' alignItems='center' mb={2}>
+                                                        {loadingRemotePlans && (
+                                                            <CircularProgress size={14} sx={{ mr: 0.75 }} />
+                                                        )}
+                                                        {remotePlansFetchError && (
+                                                            <Typography variant='caption' color='error' sx={{ mr: 1 }}>
+                                                                {remotePlansFetchError}
+                                                            </Typography>
+                                                        )}
+                                                        {remotePlans.length > 0 && (
+                                                            <Typography variant='caption'>
+                                                                <FormattedMessage
+                                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
+                                                                    defaultMessage='{count} remote plans loaded'
+                                                                    values={{ count: remotePlans.length }}
+                                                                />
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                    {groupedLocalTiers.length > 0 && (
+                                                        <Table size='small'>
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id='GatewayEnvironments.PlanMapping.localTier'
+                                                                            defaultMessage='Local Tier'
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <FormattedMessage
+                                                                            id='GatewayEnvironments.PlanMapping.remotePlan'
+                                                                            defaultMessage='Remote Plan'
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {groupedLocalTiers.map((group) => (
+                                                                    <React.Fragment key={group.apiType}>
+                                                                        <TableRow>
+                                                                            <TableCell colSpan={2}>
+                                                                                <Typography variant='subtitle2'>
+                                                                                    {getLocalApiTypeLabel(group.apiType)}
+                                                                                </Typography>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                        {group.tiers.map((tier) => (
+                                                                            <TableRow key={tier.name}>
+                                                                                <TableCell>
+                                                                                    <Typography variant='body2'>
+                                                                                        {tier.displayName}
+                                                                                    </Typography>
+                                                                                </TableCell>
+                                                                                <TableCell>
+                                                                                    <FormControl
+                                                                                        fullWidth
+                                                                                        size='small'
+                                                                                        disabled={isReadOnly}
+                                                                                    >
+                                                                                        <Select
+                                                                                            value={getMappedPlanId(tier.name)}
+                                                                                            displayEmpty
+                                                                                            onChange={(e) => {
+                                                                                                const plan = remotePlans.find(
+                                                                                                    (item) => item.id
+                                                                                                        === e.target.value,
+                                                                                                );
+                                                                                                handleTierMappingChange(
+                                                                                                    tier.name,
+                                                                                                    plan || null,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <MenuItem value=''>
+                                                                                                <em>
+                                                                                                    <FormattedMessage
+                                                                                                        id='GatewayEnvironments.PlanMapping.noMapping'
+                                                                                                        defaultMessage='No mapping'
+                                                                                                    />
+                                                                                                </em>
+                                                                                            </MenuItem>
+                                                                                            {remotePlans.map((plan) => (
+                                                                                                <MenuItem key={plan.id} value={plan.id}>
+                                                                                                    {plan.name}
+                                                                                                </MenuItem>
+                                                                                            ))}
+                                                                                            {remotePlans.length === 0
+                                                                                                && getMappedPlanId(tier.name) && (
+                                                                                                <MenuItem
+                                                                                                    key={getMappedPlanId(tier.name)}
+                                                                                                    value={getMappedPlanId(tier.name)}
+                                                                                                >
+                                                                                                    {tierMappings.find(
+                                                                                                        (mapping) => (
+                                                                                                            mapping.localTierName
+                                                                                                            === tier.name
+                                                                                                        ),
+                                                                                                    )?.remotePlanReference?.name
+                                                                                                        || getMappedPlanId(tier.name)}
+                                                                                                </MenuItem>
+                                                                                            )}
+                                                                                        </Select>
+                                                                                    </FormControl>
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        ))}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    )}
+                                                    {localTiers.length > 0 && groupedLocalTiers.length === 0 && (
+                                                        <Typography variant='caption'>
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.noCompatibleLocalPlans'
+                                                                defaultMessage={'No local subscription plans match the'
+                                                                    + ' supported API types of this gateway.'}
+                                                            />
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Grid>
+                                            <Grid item xs={12}>
+                                                <Box marginTop={2} marginBottom={2}>
+                                                    <StyledHr />
+                                                </Box>
+                                            </Grid>
+                                        </>
+                                    )}
                                     <Grid item xs={12} md={12} lg={3}>
                                         <Box
                                             display='flex'

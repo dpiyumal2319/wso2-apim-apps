@@ -186,7 +186,11 @@ export default function DevelopSectionMenu(props) {
                             id='left-menu-itembusinessinfo'
                             route='business-info'
                         />
-                        {(componentValidator.subscriptions.includes("subscriptions") && !isAPIProduct) && (
+                        {(() => {
+                            const subscriptionsSupported = componentValidator.subscriptions
+                                .includes('subscriptions');
+                            return subscriptionsSupported && !isAPIProduct;
+                        })() && (
                             <LeftMenuItem
                                 text={intl.formatMessage({
                                     id: 'Apis.Details.index.subscriptions',
