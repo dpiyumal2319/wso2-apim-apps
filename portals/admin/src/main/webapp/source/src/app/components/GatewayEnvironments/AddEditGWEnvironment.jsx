@@ -449,6 +449,7 @@ function AddEditGWEnvironment(props) {
     const [localTiers, setLocalTiers] = useState([]);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
     const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
+    const [remotePlansReloadTrigger, setRemotePlansReloadTrigger] = useState(0);
     const [hasResolvedRemotePlans, setHasResolvedRemotePlans] = useState(false);
     const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
     const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
@@ -741,6 +742,10 @@ function AddEditGWEnvironment(props) {
             }
             return existing;
         });
+    };
+
+    const handleReloadRemotePlans = () => {
+        setRemotePlansReloadTrigger((prev) => prev + 1);
     };
 
     const getMappedPlanId = (localTierName) => {
@@ -1221,6 +1226,7 @@ function AddEditGWEnvironment(props) {
         intl,
         isEditDataLoaded,
         remotePlanLookupKey,
+        remotePlansReloadTrigger,
         restApi,
     ]);
 
@@ -3150,9 +3156,8 @@ function AddEditGWEnvironment(props) {
                                                                     + '.subscribableOnly.description'
                                                                 }
                                                                 defaultMessage={
-                                                                    'Only subscribable local plans are listed.'
-                                                                    + ' Subscriptionless plans are shown only'
-                                                                    + ' when the gateway supports them.'
+                                                                    'Only plans applicable to supported'
+                                                                    + ' api types are showing'
                                                                 }
                                                             />
                                                         </Typography>
@@ -3162,6 +3167,18 @@ function AddEditGWEnvironment(props) {
                                             <Grid item xs={12} md={12} lg={9}>
                                                 <Box component='div' m={1}>
                                                     <Box display='flex' alignItems='center' mb={2}>
+                                                        <Button
+                                                            variant='outlined'
+                                                            size='small'
+                                                            onClick={handleReloadRemotePlans}
+                                                            disabled={loadingRemotePlans}
+                                                            sx={{ mr: 1 }}
+                                                        >
+                                                            <FormattedMessage
+                                                                id='GatewayEnvironments.PlanMapping.reload'
+                                                                defaultMessage='Reload'
+                                                            />
+                                                        </Button>
                                                         {loadingRemotePlans && (
                                                             <CircularProgress size={14} sx={{ mr: 0.75 }} />
                                                         )}
