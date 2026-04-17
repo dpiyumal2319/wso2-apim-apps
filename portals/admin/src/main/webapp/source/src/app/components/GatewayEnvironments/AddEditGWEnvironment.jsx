@@ -446,6 +446,7 @@ function AddEditGWEnvironment(props) {
     const [tierMappings, setTierMappings] = useState([]);
     const [remotePlans, setRemotePlans] = useState([]);
     const [localTiers, setLocalTiers] = useState([]);
+    const [hasResolvedLocalTiers, setHasResolvedLocalTiers] = useState(false);
     const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
     const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
     const [remotePlansReloadTrigger, setRemotePlansReloadTrigger] = useState(0);
@@ -722,15 +723,14 @@ function AddEditGWEnvironment(props) {
     useEffect(() => {
         restApi.getSubscritionPolicyList().then((result) => {
             const { body } = result;
-            if (body?.list) {
-                setLocalTiers(body.list
-                    .filter((policy) => isMappableLocalPolicy(policy))
-                    .map((policy) => ({
-                        name: policy.policyName,
-                        displayName: policy.displayName || policy.policyName,
-                        apiType: resolveLocalPlanApiType(policy),
-                    })));
-            }
+            setLocalTiers((body?.list || [])
+                .filter((policy) => isMappableLocalPolicy(policy))
+                .map((policy) => ({
+                    name: policy.policyName,
+                    displayName: policy.displayName || policy.policyName,
+                    apiType: resolveLocalPlanApiType(policy),
+                })));
+            setHasResolvedLocalTiers(true);
         }).catch(() => {
             // Non-critical; plan mapping section will remain empty.
         });
@@ -1494,7 +1494,7 @@ function AddEditGWEnvironment(props) {
             ? tierMappings.filter((mapping) => (
                 !!mapping
                 && !!mapping.localTierName
-                && visibleLocalTierNames.has(mapping.localTierName)
+                && (!hasResolvedLocalTiers || visibleLocalTierNames.has(mapping.localTierName))
             ))
             : [];
 
