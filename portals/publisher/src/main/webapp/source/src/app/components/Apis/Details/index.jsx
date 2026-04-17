@@ -1285,12 +1285,9 @@ class Details extends Component {
                                         path={Details.subPaths.DOCUMENTS_MCP}
                                         render={(props) => <Documents {...props} api={api} />}
                                     />
-                                    {settings && (() => {
-                                        const { gatewayFeatureCatalog } = settings;
-                                        const gatewayType = api.gatewayType || 'wso2/synapse';
-                                        const { subscriptions } = gatewayFeatureCatalog.gatewayFeatures[gatewayType];
-                                        return subscriptions.includes('subscriptions');
-                                    })() &&
+                                    {settings && settings.gatewayFeatureCatalog
+                                        .gatewayFeatures[api.gatewayType ? api.gatewayType : 'wso2/synapse']
+                                        .subscriptions.includes('subscriptions') &&
                                         <Route
                                             path={Details.subPaths.SUBSCRIPTIONS}
                                             render={(props) => <Subscriptions {...props} api={api}

@@ -96,11 +96,8 @@ function Subscriptions(props) {
         if (!gatewayFeatures) {
             return false;
         }
-        const subscriptionsConfig = gatewayFeatures.subscriptions;
-        if (Array.isArray(subscriptionsConfig)) {
-            return subscriptionsConfig.includes('subscriptions');
-        }
-        return subscriptionsConfig?.supported === true;
+        const subscriptionsConfig = gatewayFeatures.subscriptions || [];
+        return subscriptionsConfig.includes('subscriptions');
     };
 
     const getAllowedScopes = () => {

@@ -186,7 +186,9 @@ export default function ApiKeyListing() {
                 setApiKeys(apiKeyList);
             })
             .catch((error) => {
-                console.error('Error refreshing API keys list:', error);
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log(error);
+                }
             });
     };
 
@@ -248,7 +250,9 @@ export default function ApiKeyListing() {
                 setApiKeys(apiKeyList);
             })
             .catch((error) => {
-                console.error('Error revoking key:', error);
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log(error);
+                }
                 setIsRevoking(false);
                 setRevokeErrorMessage(
                     error.message || intl.formatMessage({
