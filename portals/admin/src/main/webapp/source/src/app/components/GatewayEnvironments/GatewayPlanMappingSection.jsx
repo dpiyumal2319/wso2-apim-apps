@@ -22,12 +22,8 @@ import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import FormControl from '@mui/material/FormControl';
 import Grid from '@mui/material/Grid';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
+import TextField from '@mui/material/TextField';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -46,13 +42,9 @@ export default function GatewayPlanMappingSection(props) {
         groupedLocalTiers,
         isPlanMappingSupported,
         isReadOnly,
-        loadingRemotePlans,
         localTiersLength,
-        onReloadRemotePlans,
         onTierMappingChange,
-        remotePlans,
-        remotePlansFetchError,
-        tierMappings,
+        planMappingIdentifierLabel,
     } = props;
 
     if (!isPlanMappingSupported) {
@@ -61,11 +53,6 @@ export default function GatewayPlanMappingSection(props) {
 
     const renderTierMappingRow = (tier) => {
         const mappedPlanId = getMappedPlanId(tier.name);
-        const mappedPlanName = tierMappings.find(
-            (mapping) => mapping.localTierName === tier.name,
-        )?.remotePlanReference?.name || mappedPlanId;
-        const isMappedPlanMissing = mappedPlanId
-            && !remotePlans.some((plan) => plan.id === mappedPlanId);
 
         return (
             <TableRow key={tier.name}>
@@ -75,48 +62,23 @@ export default function GatewayPlanMappingSection(props) {
                     </Typography>
                 </TableCell>
                 <TableCell>
-                    <FormControl
+                    <TextField
                         fullWidth
                         size='small'
                         disabled={isReadOnly}
-                    >
-                        <Select
-                            value={mappedPlanId}
-                            displayEmpty
-                            onChange={(e) => {
-                                const selectedPlanId = e.target.value;
-                                const plan = remotePlans.find(
-                                    (item) => item.id === selectedPlanId,
-                                );
-                                onTierMappingChange(tier.name, plan || null);
-                            }}
-                        >
-                            <MenuItem value=''>
-                                <em>
-                                    <FormattedMessage
-                                        id={NO_MAPPING_MESSAGE_ID}
-                                        defaultMessage='No mapping'
-                                    />
-                                </em>
-                            </MenuItem>
-                            {remotePlans.map((plan) => (
-                                <MenuItem
-                                    key={plan.id}
-                                    value={plan.id}
-                                >
-                                    {plan.name}
-                                </MenuItem>
-                            ))}
-                            {isMappedPlanMissing && (
-                                <MenuItem
-                                    key={mappedPlanId}
-                                    value={mappedPlanId}
-                                >
-                                    {mappedPlanName}
-                                </MenuItem>
-                            )}
-                        </Select>
-                    </FormControl>
+                        value={mappedPlanId}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            onTierMappingChange(tier.name, value || null);
+                        }}
+                        placeholder={planMappingIdentifierLabel}
+                        helperText={(
+                            <FormattedMessage
+                                id={NO_MAPPING_MESSAGE_ID}
+                                defaultMessage='No mapping'
+                            />
+                        )}
+                    />
                 </TableCell>
             </TableRow>
         );
@@ -186,37 +148,6 @@ export default function GatewayPlanMappingSection(props) {
                             </Grid>
                             <Grid item xs={12} md={12} lg={9}>
                                 <Box component='div' m={1}>
-                                    <Box display='flex' alignItems='center' mb={2}>
-                                        <Button
-                                            variant='outlined'
-                                            size='small'
-                                            onClick={onReloadRemotePlans}
-                                            disabled={loadingRemotePlans}
-                                            sx={{ mr: 1 }}
-                                        >
-                                            <FormattedMessage
-                                                id='GatewayEnvironments.PlanMapping.reload'
-                                                defaultMessage='Reload'
-                                            />
-                                        </Button>
-                                        {loadingRemotePlans && (
-                                            <CircularProgress size={14} sx={{ mr: 0.75 }} />
-                                        )}
-                                        {remotePlansFetchError && (
-                                            <Typography variant='caption' color='error' sx={{ mr: 1 }}>
-                                                {remotePlansFetchError}
-                                            </Typography>
-                                        )}
-                                        {remotePlans.length > 0 && (
-                                            <Typography variant='caption'>
-                                                <FormattedMessage
-                                                    id='GatewayEnvironments.PlanMapping.plansLoaded'
-                                                    defaultMessage='{count} remote plans loaded'
-                                                    values={{ count: remotePlans.length }}
-                                                />
-                                            </Typography>
-                                        )}
-                                    </Box>
                                     {groupedLocalTiers.length > 0 && (
                                         <Table size='small'>
                                             <TableHead>
@@ -228,10 +159,7 @@ export default function GatewayPlanMappingSection(props) {
                                                         />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <FormattedMessage
-                                                            id='GatewayEnvironments.PlanMapping.remotePlan'
-                                                            defaultMessage='Remote Plan'
-                                                        />
+                                                        {planMappingIdentifierLabel}
                                                     </TableCell>
                                                 </TableRow>
                                             </TableHead>
@@ -285,20 +213,11 @@ GatewayPlanMappingSection.propTypes = {
     })).isRequired,
     isPlanMappingSupported: PropTypes.bool.isRequired,
     isReadOnly: PropTypes.bool.isRequired,
-    loadingRemotePlans: PropTypes.bool.isRequired,
     localTiersLength: PropTypes.number.isRequired,
-    onReloadRemotePlans: PropTypes.func.isRequired,
     onTierMappingChange: PropTypes.func.isRequired,
-    remotePlans: PropTypes.arrayOf(PropTypes.shape({
-        id: PropTypes.string,
-        name: PropTypes.string,
-    })).isRequired,
-    remotePlansFetchError: PropTypes.string.isRequired,
-    tierMappings: PropTypes.arrayOf(PropTypes.shape({
-        localTierName: PropTypes.string,
-        remotePlanReference: PropTypes.shape({
-            id: PropTypes.string,
-            name: PropTypes.string,
-        }),
-    })).isRequired,
+    planMappingIdentifierLabel: PropTypes.string,
+};
+
+GatewayPlanMappingSection.defaultProps = {
+    planMappingIdentifierLabel: 'Remote Plan Identifier',
 };

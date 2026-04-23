@@ -17,7 +17,7 @@
  */
 
 import React, {
-    useEffect, useMemo, useReducer, useRef, useState,
+    useEffect, useMemo, useReducer, useState,
 } from 'react';
 import { styled } from '@mui/material/styles';
 import API from 'AppData/api';
@@ -444,18 +444,9 @@ function AddEditGWEnvironment(props) {
     const [validating, setValidating] = useState(false);
     const [saving, setSaving] = useState(false);
     const [tierMappings, setTierMappings] = useState([]);
-    const [remotePlans, setRemotePlans] = useState([]);
     const [localTiers, setLocalTiers] = useState([]);
     const [hasResolvedLocalTiers, setHasResolvedLocalTiers] = useState(false);
-    const [loadingRemotePlans, setLoadingRemotePlans] = useState(false);
-    const [remotePlansFetchError, setRemotePlansFetchError] = useState('');
-    const [remotePlansReloadTrigger, setRemotePlansReloadTrigger] = useState(0);
-    const [hasResolvedRemotePlans, setHasResolvedRemotePlans] = useState(false);
-    const [hasInitializedDefaultMappings, setHasInitializedDefaultMappings] = useState(false);
-    const [hasUserEditedTierMappings, setHasUserEditedTierMappings] = useState(false);
-    const [initialAdditionalProperties, setInitialAdditionalProperties] = useState({});
     const [isEditDataLoaded, setIsEditDataLoaded] = useState(!id);
-    const hasUserEditedTierMappingsRef = useRef(false);
     const { gatewayTypes } = settings;
     const gatewayVersions = useMemo(() => getUniversalGatewayVersions(settings), [settings]);
     const searchParams = useMemo(
@@ -606,10 +597,8 @@ function AddEditGWEnvironment(props) {
                         permissions: body.permissions || initialPermissions,
                         additionalProperties: tempAdditionalProperties || {},
                     };
-                    setInitialAdditionalProperties(tempAdditionalProperties || {});
                     if (body.tierMappings && body.tierMappings.length > 0) {
                         setTierMappings(body.tierMappings);
-                        setHasInitializedDefaultMappings(true);
                     } else {
                         setTierMappings([]);
                     }
@@ -653,7 +642,6 @@ function AddEditGWEnvironment(props) {
             setIsGatewayEditTypeResolved(true);
             setIsEditDataLoaded(true);
             setTierMappings([]);
-            setInitialAdditionalProperties({});
             const newInitialState = {
                 name: '',
                 displayName: '',
@@ -736,21 +724,7 @@ function AddEditGWEnvironment(props) {
         });
     }, [restApi]);
 
-    useEffect(() => {
-        setHasInitializedDefaultMappings(false);
-        setHasUserEditedTierMappings(false);
-        hasUserEditedTierMappingsRef.current = false;
-        setRemotePlansFetchError('');
-        setHasResolvedRemotePlans(false);
-    }, [id]);
-
-    useEffect(() => {
-        hasUserEditedTierMappingsRef.current = hasUserEditedTierMappings;
-    }, [hasUserEditedTierMappings]);
-
     const handleTierMappingChange = (localTierName, remotePlanReference) => {
-        setHasUserEditedTierMappings(true);
-        setHasInitializedDefaultMappings(true);
         setTierMappings((prev) => {
             const existing = prev.filter((mapping) => mapping.localTierName !== localTierName);
             if (remotePlanReference) {
@@ -760,19 +734,20 @@ function AddEditGWEnvironment(props) {
         });
     };
 
-    const handleReloadRemotePlans = () => {
-        setRemotePlansReloadTrigger((prev) => prev + 1);
-    };
-
     const getMappedPlanId = (localTierName) => {
         const mapping = tierMappings.find((item) => item.localTierName === localTierName);
-        return mapping ? (mapping.remotePlanReference?.id || '') : '';
+        return mapping ? (mapping.remotePlanReference || '') : '';
     };
 
     const gatewayConfig = settings.gatewayConfiguration
         ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
         : null;
     const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
+    const planMappingIdentifierLabel = gatewayConfig?.planMappingIdentifierLabel
+        || intl.formatMessage({
+            id: 'GatewayEnvironments.PlanMapping.identifier.defaultLabel',
+            defaultMessage: 'Remote Plan Identifier',
+        });
     const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
         .map((apiType) => normalizeApiType(apiType))
         .filter(Boolean);
@@ -1015,122 +990,6 @@ function AddEditGWEnvironment(props) {
         setAdditionalProperties('platformGatewayBaseUrl', e.target.value);
     };
 
-    const hasGatewayConnectorConfigErrors = (connectorConfigurations) => {
-        for (const connectorConfig of connectorConfigurations) {
-            if (
-                connectorConfig.required
-                && (!additionalProperties[connectorConfig.name]
-                    || additionalProperties[connectorConfig.name] === '')
-            ) {
-                return true;
-            }
-
-            if (
-                connectorConfig.values
-                && connectorConfig.values.length > 0
-                && additionalProperties[connectorConfig.name]
-            ) {
-                const selectedOption = connectorConfig.values.find((option) => {
-                    if (typeof option === 'string') {
-                        return option === additionalProperties[connectorConfig.name];
-                    }
-                    return option.name === additionalProperties[connectorConfig.name];
-                });
-
-                if (
-                    selectedOption
-                    && typeof selectedOption === 'object'
-                    && selectedOption.values
-                ) {
-                    if (hasGatewayConnectorConfigErrors(selectedOption.values)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    };
-
-    const hasConnectorConfigChanged = () => {
-        if (!id) {
-            return true;
-        }
-        const currentProperties = additionalProperties || {};
-        const allKeys = new Set([
-            ...Object.keys(currentProperties),
-            ...Object.keys(initialAdditionalProperties || {}),
-        ]);
-        for (const key of allKeys) {
-            if ((currentProperties[key] || '') !== (initialAdditionalProperties[key] || '')) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    const buildRemotePlanLookupEnvironment = () => ({
-        name: name.trim() || 'temp-environment',
-        displayName: displayName || name.trim() || 'temp-environment',
-        type,
-        description,
-        gatewayType,
-        mode: gatewayMode,
-        apiDiscoveryScheduledWindow: scheduledInterval,
-        vhosts: buildVhostDTO(vhosts, gatewayType),
-        permissions: {
-            permissionType: state.permissions.permissionType,
-            roles: roles.concat(validRoles),
-        },
-        additionalProperties: buildAdditionalPropertiesArray(state.additionalProperties),
-        provider: getGatewayProvider(gatewayType),
-    });
-
-    const buildRemotePlanLookupRequest = () => {
-        if (!id) {
-            return { environment: buildRemotePlanLookupEnvironment() };
-        }
-        if (!hasConnectorConfigChanged()) {
-            return { environmentId: id };
-        }
-        return {
-            environmentId: id,
-            environment: buildRemotePlanLookupEnvironment(),
-        };
-    };
-
-    const remotePlanLookupKey = useMemo(() => {
-        if (!isPlanMappingSupported || gatewayType === 'other') {
-            return '';
-        }
-        if (hasGatewayConnectorConfigErrors(gatewayConfigurations)) {
-            return '';
-        }
-        if (id && !hasConnectorConfigChanged()) {
-            return `persisted:${id}`;
-        }
-        return JSON.stringify({
-            environmentId: id || '',
-            gatewayType,
-            gatewayMode,
-            scheduledInterval,
-            type,
-            vhosts: buildVhostDTO(vhosts, gatewayType),
-            additionalProperties: buildAdditionalPropertiesArray(state.additionalProperties),
-            provider: getGatewayProvider(gatewayType),
-        });
-    }, [
-        additionalProperties,
-        gatewayConfigurations,
-        gatewayMode,
-        gatewayType,
-        id,
-        initialAdditionalProperties,
-        isPlanMappingSupported,
-        scheduledInterval,
-        type,
-        vhosts,
-    ]);
-
     const onChange = (e) => {
         if (e.target.name === 'GatewayPermissionRestrict') {
             permissionType = e.target.value;
@@ -1152,109 +1011,6 @@ function AddEditGWEnvironment(props) {
             });
         }
     }, [supportedModes]);
-
-    useEffect(() => {
-        if (
-            (id && !isEditDataLoaded)
-            || !remotePlanLookupKey
-        ) {
-            setRemotePlans([]);
-            setLoadingRemotePlans(false);
-            setRemotePlansFetchError('');
-            setHasResolvedRemotePlans(false);
-            return () => {};
-        }
-
-        let isCancelled = false;
-        const timer = setTimeout(() => {
-            setLoadingRemotePlans(true);
-            setRemotePlansFetchError('');
-            setHasResolvedRemotePlans(false);
-            if (!hasUserEditedTierMappingsRef.current) {
-                setHasInitializedDefaultMappings(false);
-            }
-            restApi.getEnvironmentRemotePlans(buildRemotePlanLookupRequest())
-                .then((result) => {
-                    if (!isCancelled) {
-                        setRemotePlans(result?.body?.list || []);
-                        setHasResolvedRemotePlans(true);
-                    }
-                })
-                .catch((error) => {
-                    if (!isCancelled) {
-                        const errorMessage = error?.response?.body?.description
-                            || intl.formatMessage({
-                                id: 'GatewayEnvironments.PlanMapping.fetch.error',
-                                defaultMessage: 'Failed to fetch remote plans from the gateway.',
-                            });
-                        setRemotePlansFetchError(errorMessage);
-                        setRemotePlans([]);
-                    }
-                })
-                .finally(() => {
-                    if (!isCancelled) {
-                        setLoadingRemotePlans(false);
-                    }
-                });
-        }, 400);
-
-        return () => {
-            clearTimeout(timer);
-            isCancelled = true;
-        };
-    }, [
-        id,
-        intl,
-        isEditDataLoaded,
-        remotePlanLookupKey,
-        remotePlansReloadTrigger,
-        restApi,
-    ]);
-
-    useEffect(() => {
-        if (!isPlanMappingSupported || hasInitializedDefaultMappings || hasUserEditedTierMappings) {
-            return;
-        }
-        if (visibleLocalTiers.length === 0) {
-            return;
-        }
-        if (!hasResolvedRemotePlans || remotePlans.length === 0) {
-            return;
-        }
-        const defaultRemotePlan = remotePlans[0];
-        setTierMappings((prev) => {
-            const existingMappingsByTier = new Map(
-                prev.map((mapping) => [mapping.localTierName, mapping]),
-            );
-            const hiddenMappings = prev.filter(
-                (mapping) => !visibleLocalTierNames.has(mapping.localTierName),
-            );
-            const normalizedVisibleMappings = visibleLocalTiers.map((tier) => {
-                const existing = existingMappingsByTier.get(tier.name);
-                if (existing?.remotePlanReference) {
-                    return existing;
-                }
-                return {
-                    localTierName: tier.name,
-                    remotePlanReference: defaultRemotePlan,
-                };
-            });
-            const nextMappings = [...hiddenMappings, ...normalizedVisibleMappings];
-            if (JSON.stringify(prev) === JSON.stringify(nextMappings)) {
-                return prev;
-            }
-            return nextMappings;
-        });
-        setHasInitializedDefaultMappings(true);
-    }, [
-        hasInitializedDefaultMappings,
-        hasResolvedRemotePlans,
-        hasUserEditedTierMappings,
-        isPlanMappingSupported,
-        remotePlans,
-        visibleLocalTierNames,
-        visibleLocalTiers,
-    ]);
 
     const getLocalApiTypeLabel = (apiType) => {
         switch (apiType) {
@@ -1497,24 +1253,6 @@ function AddEditGWEnvironment(props) {
                 && (!hasResolvedLocalTiers || visibleLocalTierNames.has(mapping.localTierName))
             ))
             : [];
-
-        if (isPlanMappingSupported) {
-            if (loadingRemotePlans) {
-                Alert.error(
-                    intl.formatMessage({
-                        id: 'GatewayEnvironments.PlanMapping.fetch.pending.error',
-                        defaultMessage: 'Please wait until remote plans are loaded before saving.',
-                    }),
-                );
-                setSaving(false);
-                return false;
-            }
-            if (remotePlansFetchError) {
-                Alert.error(remotePlansFetchError);
-                setSaving(false);
-                return false;
-            }
-        }
 
         let promiseAPICall;
         if (!id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform) {
@@ -3174,13 +2912,9 @@ function AddEditGWEnvironment(props) {
                                             groupedLocalTiers={groupedLocalTiers}
                                             isPlanMappingSupported={isPlanMappingSupported}
                                             isReadOnly={isReadOnly}
-                                            loadingRemotePlans={loadingRemotePlans}
                                             localTiersLength={localTiers.length}
-                                            onReloadRemotePlans={handleReloadRemotePlans}
                                             onTierMappingChange={handleTierMappingChange}
-                                            remotePlans={remotePlans}
-                                            remotePlansFetchError={remotePlansFetchError}
-                                            tierMappings={tierMappings}
+                                            planMappingIdentifierLabel={planMappingIdentifierLabel}
                                         />
                                     )}
                                 </>
