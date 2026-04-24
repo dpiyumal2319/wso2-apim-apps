@@ -51,6 +51,13 @@ export default function GatewayConfiguration(props) {
         connectorConfigurations.forEach((connectorConfig) => {
             const connectorConfigKey = parentKey ? `${parentKey}.${connectorConfig.name}` : connectorConfig.name;
             gatewayConfigPropertyNames.push(connectorConfig.name);
+            if (connectorConfig.type === 'mapping' && connectorConfig.values && connectorConfig.values.length > 0) {
+                connectorConfig.values.forEach((mappingValue) => {
+                    if (mappingValue && typeof mappingValue === 'object' && mappingValue.id) {
+                        gatewayConfigPropertyNames.push(`${connectorConfig.name}.${mappingValue.id}`);
+                    }
+                });
+            }
 
             if (connectorConfig.values && connectorConfig.values.length > 0) {
                 connectorConfig.values.forEach((value) => {
@@ -186,6 +193,55 @@ export default function GatewayConfiguration(props) {
         });
     }, [gatewayConfigurations, additionalProperties]);
 
+    const getMappingComponent = (gatewayConfiguration) => {
+        const leftLabel = gatewayConfiguration?.labels?.left || 'Key';
+        const rightLabel = gatewayConfiguration?.labels?.right || gatewayConfiguration.label || 'Value';
+        const values = Array.isArray(gatewayConfiguration.values) ? gatewayConfiguration.values : [];
+
+        return (
+            <Box mt={1}>
+                {gatewayConfiguration.label && (
+                    <FormLabel component='legend'>{gatewayConfiguration.label}</FormLabel>
+                )}
+                <Box
+                    display='grid'
+                    gridTemplateColumns='minmax(0, 1fr) minmax(0, 1fr)'
+                    columnGap={2}
+                    rowGap={1.5}
+                    mt={1.5}
+                >
+                    <Box fontWeight={500}>{leftLabel}</Box>
+                    <Box fontWeight={500}>{rightLabel}</Box>
+                    {values.map((mappingValue) => {
+                        if (!mappingValue || typeof mappingValue !== 'object' || !mappingValue.id) {
+                            return null;
+                        }
+                        const propertyName = `${gatewayConfiguration.name}.${mappingValue.id}`;
+                        return (
+                            <React.Fragment key={propertyName}>
+                                <Box display='flex' alignItems='center' minHeight={56}>
+                                    {mappingValue.label || mappingValue.id}
+                                </Box>
+                                <TextField
+                                    id={propertyName}
+                                    margin='dense'
+                                    name={propertyName}
+                                    fullWidth
+                                    variant='outlined'
+                                    value={additionalProperties[propertyName] || ''}
+                                    onChange={onChange}
+                                />
+                            </React.Fragment>
+                        );
+                    })}
+                </Box>
+                {gatewayConfiguration.tooltip && (
+                    <FormHelperText>{gatewayConfiguration.tooltip}</FormHelperText>
+                )}
+            </Box>
+        );
+    };
+
     const getComponent = (gatewayConfiguration) => {
         let value = '';
         const disabled = Boolean(gatewayConfiguration.updateDisabled && gatewayId);
@@ -207,7 +263,9 @@ export default function GatewayConfiguration(props) {
                 });
             }
         }
-        if (gatewayConfiguration.type === 'input') {
+        if (gatewayConfiguration.type === 'mapping') {
+            return getMappingComponent(gatewayConfiguration);
+        } else if (gatewayConfiguration.type === 'input') {
             if (gatewayConfiguration.mask) {
                 return (
                     <FormControl variant='outlined' fullWidth disabled={disabled}>

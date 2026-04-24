@@ -60,7 +60,6 @@ import GatewayConfiguration from 'AppComponents/GatewayEnvironments/GatewayConfi
 import cloneDeep from 'lodash.clonedeep';
 import CircularProgress from '@mui/material/CircularProgress';
 import GatewayTypeOptionCard from './GatewayTypeOptionCard';
-import GatewayPlanMappingSection from './GatewayPlanMappingSection';
 import QuickStartGuide from './UniversalGatewayQuickStartGuide';
 import {
     buildAdditionalPropertiesArray,
@@ -230,27 +229,6 @@ const StyledContentBase = styled(ContentBase)(({ theme }) => ({
 }));
 
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
-
-const LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE = {
-    REQUESTCOUNTLIMIT: 'rest',
-    EVENTCOUNTLIMIT: 'async',
-    AIAPIQUOTALIMIT: 'ai-api',
-};
-const NON_SUBSCRIBABLE_LOCAL_POLICIES = new Set(['Unauthenticated']);
-const SUBSCRIPTIONLESS_LOCAL_POLICIES = new Set(['DefaultSubscriptionless', 'AsyncDefaultSubscriptionless']);
-
-const normalizeApiType = (apiType) => (apiType || '').toString().trim().toLowerCase();
-
-const resolveLocalPlanApiType = (policy) => {
-    const limitType = (policy?.defaultLimit?.type || '').toString().trim().toUpperCase();
-    return LOCAL_PLAN_API_TYPE_BY_LIMIT_TYPE[limitType] || 'other';
-};
-
-const isMappableLocalPolicy = (policy) => (
-    !!policy
-    && !!policy.policyName
-    && !NON_SUBSCRIBABLE_LOCAL_POLICIES.has(policy.policyName)
-);
 
 const getNameValidationError = (value, formatMessage) => {
     if (value === undefined) {
@@ -443,9 +421,6 @@ function AddEditGWEnvironment(props) {
     const [supportedModes, setSupportedModes] = useState([]);
     const [validating, setValidating] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [tierMappings, setTierMappings] = useState([]);
-    const [localTiers, setLocalTiers] = useState([]);
-    const [hasResolvedLocalTiers, setHasResolvedLocalTiers] = useState(false);
     const [isEditDataLoaded, setIsEditDataLoaded] = useState(!id);
     const { gatewayTypes } = settings;
     const gatewayVersions = useMemo(() => getUniversalGatewayVersions(settings), [settings]);
@@ -597,11 +572,6 @@ function AddEditGWEnvironment(props) {
                         permissions: body.permissions || initialPermissions,
                         additionalProperties: tempAdditionalProperties || {},
                     };
-                    if (body.tierMappings && body.tierMappings.length > 0) {
-                        setTierMappings(body.tierMappings);
-                    } else {
-                        setTierMappings([]);
-                    }
                     if (platformGatewayId) {
                         dispatch({ field: 'editDetails', value: newState });
                         setIsPlatformGatewayEdit(true);
@@ -641,7 +611,6 @@ function AddEditGWEnvironment(props) {
         } else {
             setIsGatewayEditTypeResolved(true);
             setIsEditDataLoaded(true);
-            setTierMappings([]);
             const newInitialState = {
                 name: '',
                 displayName: '',
@@ -707,64 +676,6 @@ function AddEditGWEnvironment(props) {
             setSupportedModes(config.supportedModes || []);
         }
     }, [gatewayType]);
-
-    useEffect(() => {
-        restApi.getSubscritionPolicyList().then((result) => {
-            const { body } = result;
-            setLocalTiers((body?.list || [])
-                .filter((policy) => isMappableLocalPolicy(policy))
-                .map((policy) => ({
-                    name: policy.policyName,
-                    displayName: policy.displayName || policy.policyName,
-                    apiType: resolveLocalPlanApiType(policy),
-                })));
-            setHasResolvedLocalTiers(true);
-        }).catch(() => {
-            // Non-critical; plan mapping section will remain empty.
-        });
-    }, [restApi]);
-
-    const handleTierMappingChange = (localTierName, remotePlanReference) => {
-        setTierMappings((prev) => {
-            const existing = prev.filter((mapping) => mapping.localTierName !== localTierName);
-            if (remotePlanReference) {
-                return [...existing, { localTierName, remotePlanReference }];
-            }
-            return existing;
-        });
-    };
-
-    const getMappedPlanId = (localTierName) => {
-        const mapping = tierMappings.find((item) => item.localTierName === localTierName);
-        return mapping ? (mapping.remotePlanReference || '') : '';
-    };
-
-    const gatewayConfig = settings.gatewayConfiguration
-        ? settings.gatewayConfiguration.find((gateway) => gateway.type === gatewayType)
-        : null;
-    const isPlanMappingSupported = gatewayConfig?.planMappingSupported === true;
-    const planMappingIdentifierLabel = gatewayConfig?.planMappingIdentifierLabel
-        || intl.formatMessage({
-            id: 'GatewayEnvironments.PlanMapping.identifier.defaultLabel',
-            defaultMessage: 'Remote Plan Identifier',
-        });
-    const supportedApiTypes = (gatewayConfig?.supportedApiTypes || [])
-        .map((apiType) => normalizeApiType(apiType))
-        .filter(Boolean);
-    const visibleLocalTiers = localTiers.filter((tier) => (
-        (supportedApiTypes.length === 0 || supportedApiTypes.includes(tier.apiType))
-        && !SUBSCRIPTIONLESS_LOCAL_POLICIES.has(tier.name)
-    ));
-    const visibleLocalTierNames = new Set(visibleLocalTiers.map((tier) => tier.name));
-    const groupOrder = supportedApiTypes.length > 0
-        ? supportedApiTypes
-        : [...new Set(visibleLocalTiers.map((tier) => tier.apiType))];
-    const groupedLocalTiers = groupOrder
-        .map((apiType) => ({
-            apiType,
-            tiers: visibleLocalTiers.filter((tier) => tier.apiType === apiType),
-        }))
-        .filter((group) => group.tiers.length > 0);
 
     let permissionType = '';
     if (permissions) {
@@ -867,7 +778,7 @@ function AddEditGWEnvironment(props) {
             return;
         }
 
-        const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(additionalProperties);
+        const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(state.additionalProperties);
         const permissionsDTO = buildPermissionsDTO(permissions);
         const vhostDTO = (vhosts || []).map((vhost) => ({
             host: vhost.host,
@@ -1011,31 +922,6 @@ function AddEditGWEnvironment(props) {
             });
         }
     }, [supportedModes]);
-
-    const getLocalApiTypeLabel = (apiType) => {
-        switch (apiType) {
-            case 'rest':
-                return intl.formatMessage({
-                    id: 'GatewayEnvironments.PlanMapping.apiType.rest',
-                    defaultMessage: 'REST APIs',
-                });
-            case 'async':
-                return intl.formatMessage({
-                    id: 'GatewayEnvironments.PlanMapping.apiType.async',
-                    defaultMessage: 'Async APIs',
-                });
-            case 'ai-api':
-                return intl.formatMessage({
-                    id: 'GatewayEnvironments.PlanMapping.apiType.ai',
-                    defaultMessage: 'AI APIs',
-                });
-            default:
-                return intl.formatMessage({
-                    id: 'GatewayEnvironments.PlanMapping.apiType.other',
-                    defaultMessage: 'Other APIs',
-                });
-        }
-    };
 
     /* const getBorderColor = (gatewayTypeNew) => {
         return gatewayType === gatewayTypeNew
@@ -1243,16 +1129,7 @@ function AddEditGWEnvironment(props) {
             roles,
             validRoles,
         );
-        const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(
-            state.additionalProperties,
-        );
-        const filteredTierMappings = isPlanMappingSupported
-            ? tierMappings.filter((mapping) => (
-                !!mapping
-                && !!mapping.localTierName
-                && (!hasResolvedLocalTiers || visibleLocalTierNames.has(mapping.localTierName))
-            ))
-            : [];
+        const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(state.additionalProperties);
 
         let promiseAPICall;
         if (!id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform) {
@@ -1294,7 +1171,6 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
-                filteredTierMappings,
             );
         } else {
             // assign the create promise to the promiseAPICall
@@ -1310,7 +1186,6 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
-                filteredTierMappings,
             );
         }
 
@@ -2905,18 +2780,6 @@ function AddEditGWEnvironment(props) {
                                             <StyledHr />
                                         </Box>
                                     </Grid>
-                                    {isPlanMappingSupported && (
-                                        <GatewayPlanMappingSection
-                                            getLocalApiTypeLabel={getLocalApiTypeLabel}
-                                            getMappedPlanId={getMappedPlanId}
-                                            groupedLocalTiers={groupedLocalTiers}
-                                            isPlanMappingSupported={isPlanMappingSupported}
-                                            isReadOnly={isReadOnly}
-                                            localTiersLength={localTiers.length}
-                                            onTierMappingChange={handleTierMappingChange}
-                                            planMappingIdentifierLabel={planMappingIdentifierLabel}
-                                        />
-                                    )}
                                 </>
                             )}
                             <Grid item xs={12} mb={2}>
