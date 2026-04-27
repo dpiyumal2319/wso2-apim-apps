@@ -19,6 +19,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CustomGatewayInputField from 'AppComponents/GatewayEnvironments/CustomGatewayInputField';
 
 const StyledSpan = styled('span')(({ theme }) => ({ color: theme.palette.error.dark }));
+const PLAN_MAPPING_PROPERTY_PREFIX = 'plan_mapping.';
 
 // Styled wrapper to mimic TextField's outlined style
 const StyledFormControl = styled(FormControl)(({ theme }) => ({
@@ -48,7 +49,7 @@ const StyledFormControl = styled(FormControl)(({ theme }) => ({
 export default function GatewayConfiguration(props) {
     const {
         gatewayConfigurations, additionalProperties = {}, setAdditionalProperties = () => {}, gatewayId,
-        hasErrors, validating, planMappings = [], setPlanMapping = () => {}, isReadOnly = false,
+        hasErrors, validating, isReadOnly = false,
     } = props;
 
     const getAllNestedGatewayConfigPropertyNames = (connectorConfigurations, parentKey = '') => {
@@ -172,7 +173,10 @@ export default function GatewayConfiguration(props) {
 
         // Clear any properties in additionalProperties that are not in the current valid set
         Object.keys(additionalProperties).forEach((propName) => {
-            if (!currentValidProperties.includes(propName)) {
+            if (
+                !currentValidProperties.includes(propName)
+                && !propName.startsWith(PLAN_MAPPING_PROPERTY_PREFIX)
+            ) {
                 setAdditionalProperties(propName, undefined);
             }
         });
@@ -237,8 +241,7 @@ export default function GatewayConfiguration(props) {
             ...Object.keys(groupedValues).filter((apiType) => !apiTypeOrder.includes(apiType)),
         ];
         const getPlanMappingValue = (localPolicyId) => {
-            const planMapping = planMappings.find((mapping) => mapping.localPolicyId === localPolicyId);
-            return planMapping?.remotePlanReference || '';
+            return additionalProperties[`${PLAN_MAPPING_PROPERTY_PREFIX}${localPolicyId}`] || '';
         };
 
         return (
@@ -285,7 +288,10 @@ export default function GatewayConfiguration(props) {
                                         fullWidth
                                         variant='outlined'
                                         value={getPlanMappingValue(mappingValue.id)}
-                                        onChange={(event) => setPlanMapping(mappingValue.id, event.target.value)}
+                                        onChange={(event) => setAdditionalProperties(
+                                            `${PLAN_MAPPING_PROPERTY_PREFIX}${mappingValue.id}`,
+                                            event.target.value || undefined,
+                                        )}
                                         disabled={isReadOnly}
                                     />
                                 </React.Fragment>
@@ -472,8 +478,6 @@ GatewayConfiguration.defaultProps = {
     gatewayConfigurations: [],
     additionalProperties: {},
     setAdditionalProperties: () => {},
-    planMappings: [],
-    setPlanMapping: () => {},
     required: false,
     helperText: <FormattedMessage
         id='Gateway.Configuration.Helper.text'

@@ -383,7 +383,6 @@ function reducer(state, { field, value }) {
         case 'roles':
         case 'scheduledInterval':
         case 'additionalProperties':
-        case 'planMappings':
         case 'vhosts':
             return { ...state, [field]: value };
         case 'editDetails':
@@ -496,7 +495,6 @@ function AddEditGWEnvironment(props) {
         ],
         permissions: initialPermissions,
         additionalProperties: {},
-        planMappings: [],
     });
     const [editMode, setIsEditMode] = useState(false);
     const [isReadOnly, setIsReadOnly] = useState(dataRow?.isReadOnly || false);
@@ -531,7 +529,6 @@ function AddEditGWEnvironment(props) {
         scheduledInterval,
         permissions,
         additionalProperties,
-        planMappings,
     } = state;
     const platformGatewayBaseUrl = additionalProperties?.platformGatewayBaseUrl || '';
     const isUniversalGatewayCreate = !id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform;
@@ -572,7 +569,6 @@ function AddEditGWEnvironment(props) {
                         vhosts: body.vhosts || [],
                         permissions: body.permissions || initialPermissions,
                         additionalProperties: tempAdditionalProperties || {},
-                        planMappings: body.planMappings || [],
                     };
                     if (platformGatewayId) {
                         dispatch({ field: 'editDetails', value: newState });
@@ -629,7 +625,6 @@ function AddEditGWEnvironment(props) {
                     permissionType: 'PUBLIC',
                 },
                 additionalProperties: {},
-                planMappings: [],
             };
             setInitialState(newInitialState);
             dispatch({ field: 'editDetails', value: newInitialState });
@@ -780,7 +775,6 @@ function AddEditGWEnvironment(props) {
         }
 
         const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(state.additionalProperties);
-        const planMappingsDTO = state.planMappings || [];
         const permissionsDTO = buildPermissionsDTO(permissions);
         const vhostDTO = (vhosts || []).map((vhost) => ({
             host: vhost.host,
@@ -831,7 +825,6 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
-                planMappingsDTO,
             );
             dispatch({ field: 'displayName', value: trimmedDisplayName });
             dispatch({ field: 'description', value: trimmedDescription });
@@ -897,18 +890,6 @@ function AddEditGWEnvironment(props) {
         dispatch({
             field: 'additionalProperties',
             value: clonedAdditionalProperties,
-        });
-    };
-
-    const setPlanMapping = (localPolicyId, remotePlanReference) => {
-        const nextPlanMappings = (planMappings || [])
-            .filter((planMapping) => planMapping.localPolicyId !== localPolicyId);
-        if (remotePlanReference !== undefined && remotePlanReference !== '') {
-            nextPlanMappings.push({ localPolicyId, remotePlanReference });
-        }
-        dispatch({
-            field: 'planMappings',
-            value: nextPlanMappings,
         });
     };
 
@@ -1145,7 +1126,6 @@ function AddEditGWEnvironment(props) {
             validRoles,
         );
         const additionalPropertiesArrayDTO = buildAdditionalPropertiesArray(state.additionalProperties);
-        const planMappingsDTO = state.planMappings || [];
 
         let promiseAPICall;
         if (!id && gatewayType === CONSTS.GATEWAY_TYPE.apiPlatform) {
@@ -1187,7 +1167,6 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
-                planMappingsDTO,
             );
         } else {
             // assign the create promise to the promiseAPICall
@@ -1203,7 +1182,6 @@ function AddEditGWEnvironment(props) {
                 permissionsDTO,
                 additionalPropertiesArrayDTO,
                 provider,
-                planMappingsDTO,
             );
         }
 
@@ -2406,12 +2384,6 @@ function AddEditGWEnvironment(props) {
                                                         )}
                                                         setAdditionalProperties={
                                                             setAdditionalProperties
-                                                        }
-                                                        planMappings={cloneDeep(
-                                                            planMappings,
-                                                        )}
-                                                        setPlanMapping={
-                                                            setPlanMapping
                                                         }
                                                         hasErrors={
                                                             hasErrors
