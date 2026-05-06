@@ -41,6 +41,12 @@ import SubscriptionPoliciesManage from './SubscriptionPoliciesManage';
 import SubscriptionAvailability from './SubscriptionAvailability';
 
 const PREFIX = 'Subscriptions';
+const PLAN_MAPPING_PROPERTY_PREFIX = 'plan_mapping.';
+const NON_MAPPABLE_SUBSCRIPTION_POLICIES = new Set([
+    'Unauthenticated',
+    CONSTS.DEFAULT_SUBSCRIPTIONLESS_PLAN,
+    CONSTS.DEFAULT_ASYNC_SUBSCRIPTIONLESS_PLAN,
+]);
 
 const classes = {
     buttonSection: `${PREFIX}-buttonSection`,
@@ -86,6 +92,40 @@ function Subscriptions(props) {
     const isSubValidationDisabled = api.policies && api.policies.length === 1 
     && api.policies[0].includes(CONSTS.DEFAULT_SUBSCRIPTIONLESS_PLAN);
     const typeToDisplay = getTypeToDisplay(api.apiType);
+
+    const getMappedPolicyNames = () => {
+        if (!settings || !settings.environment) {
+            return null;
+        }
+        const matchingGateways = settings.environment.filter((environment) => (
+            environment.gatewayType === api.gatewayType
+        ));
+        if (matchingGateways.length === 0) {
+            return null;
+        }
+        let mappedPolicyNames = null;
+        matchingGateways.forEach((environment) => {
+            const additionalProperties = Array.isArray(environment.additionalProperties)
+                ? environment.additionalProperties
+                : [];
+            const environmentMappedPolicies = new Set(
+                additionalProperties
+                    .filter((property) => property?.key?.startsWith(PLAN_MAPPING_PROPERTY_PREFIX)
+                        && property?.value?.trim())
+                    .map((property) => property.key.substring(PLAN_MAPPING_PROPERTY_PREFIX.length))
+                    .filter((policyName) => policyName && !NON_MAPPABLE_SUBSCRIPTION_POLICIES.has(policyName)),
+            );
+            if (environmentMappedPolicies.size === 0) {
+                return;
+            }
+            mappedPolicyNames = mappedPolicyNames === null
+                ? environmentMappedPolicies
+                : new Set([...mappedPolicyNames].filter((policyName) => environmentMappedPolicies.has(policyName)));
+        });
+        return mappedPolicyNames;
+    };
+
+    const mappedPolicyNames = getMappedPolicyNames();
 
     const isSubscriptionManagementSupported = () => {
         if (api.gatewayVendor === 'wso2' || api.gatewayType === 'solace') {
@@ -191,6 +231,7 @@ function Subscriptions(props) {
                         policies={policies}
                         setPolices={setPolices}
                         subValidationDisablingAllowed={settings.allowSubscriptionValidationDisabling}
+                        mappedPolicyNames={mappedPolicyNames}
                     />
                 )}
             {isSubValidationDisabled && (

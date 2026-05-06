@@ -69,6 +69,8 @@ const Root = styled('div')((
     }
 }));
 
+const getPolicyName = (policy) => policy.displayName || policy.policyName || policy.name;
+
 /**
  * Manage subscription policies of the API
  * @param {object} props - Props passed to the component
@@ -108,7 +110,12 @@ class SubscriptionPoliciesManage extends Component {
         }
         policyPromise
             .then((res) => {
-                this.setState({ subscriptionPolicies: res.body.list });
+                const { mappedPolicyNames } = this.props;
+                const policies = res.body.list || [];
+                const subscriptionPolicies = mappedPolicyNames
+                    ? policies.filter((policy) => mappedPolicyNames.has(getPolicyName(policy)))
+                    : policies;
+                this.setState({ subscriptionPolicies });
             })
             .catch((error) => {
                 if (process.env.NODE_ENV !== 'production') {
@@ -322,7 +329,8 @@ SubscriptionPoliciesManage.propTypes = {
     intl: PropTypes.shape({ formatMessage: PropTypes.func }).isRequired,
     api: PropTypes.shape({ policies: PropTypes.arrayOf(PropTypes.shape({})) }).isRequired,
     setPolices: PropTypes.func.isRequired,
-    policies: PropTypes.shape({}).isRequired,
+    policies: PropTypes.arrayOf(PropTypes.string).isRequired,
+    mappedPolicyNames: PropTypes.instanceOf(Set).isRequired,
 };
 
 export default injectIntl((SubscriptionPoliciesManage));
