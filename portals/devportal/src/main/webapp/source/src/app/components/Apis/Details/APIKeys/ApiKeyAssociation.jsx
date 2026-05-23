@@ -20,6 +20,7 @@ import React from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import {
     Button,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -31,6 +32,7 @@ import {
     Typography,
 } from '@mui/material';
 import API from 'AppData/api';
+import Alert from 'AppComponents/Shared/Alert';
 
 /**
  * Custom hook for managing API key association and dissociation operations
@@ -76,7 +78,7 @@ export default function ApiKeyAssociation(apiUUID, refreshApiKeys, subscribedApp
 
     const handleAssociateKey = () => {
         if (!selectedAppForAssociation || !selectedKeyForAssociation || isAssociating) {
-            alert(intl.formatMessage({
+            Alert.error(intl.formatMessage({
                 id: 'Apis.Details.APIKeys.ApiKeyAssociation.alert.selectApplication',
                 defaultMessage: 'Please select an application.',
             }));
@@ -224,8 +226,16 @@ export default function ApiKeyAssociation(apiUUID, refreshApiKeys, subscribedApp
                         onClick={handleAssociateKey}
                         variant='contained'
                         disabled={!selectedAppForAssociation || isAssociating}
+                        startIcon={isAssociating ? <CircularProgress size={16} color='inherit' /> : null}
                     >
-                        <FormattedMessage id='Apis.Details.APIKeys.ApiKeyAssociation.button.associate' defaultMessage='Associate' />
+                        {isAssociating ? (
+                            <FormattedMessage
+                                id='Apis.Details.APIKeys.ApiKeyAssociation.button.associating'
+                                defaultMessage='Associating...'
+                            />
+                        ) : (
+                            <FormattedMessage id='Apis.Details.APIKeys.ApiKeyAssociation.button.associate' defaultMessage='Associate' />
+                        )}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -390,6 +400,9 @@ export default function ApiKeyAssociation(apiUUID, refreshApiKeys, subscribedApp
     );
 
     return {
+        isAssociating,
+        isDissociating,
+        selectedKeyForDissociate,
         // Handlers
         handleOpenAssociationModal,
         handleRemoveAssociation,

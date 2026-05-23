@@ -404,6 +404,9 @@ class ApiConsole extends React.Component {
      * @memberof TryOutController
      */
     updateAccessToken(selectedApplication) {
+        if (selectedApplication == null || selectedApplication === '') {
+            return;
+        }
         const {
             selectedKeyType, selectedKeyManager, keys,
         } = this.state;
@@ -431,6 +434,12 @@ class ApiConsole extends React.Component {
                         this.setSandboxAccessToken(accessToken);
                     }
                     this.setKeys(appKeys);
+                })
+                .catch((err) => {
+                    if (process.env.NODE_ENV !== 'production') {
+                        // eslint-disable-next-line no-console
+                        console.warn('ApiConsole: could not load application keys', err);
+                    }
                 });
         }
     }
@@ -446,7 +455,10 @@ class ApiConsole extends React.Component {
             securitySchemeType, username, password, productionAccessToken, sandboxAccessToken, selectedKeyType,
             productionApiKey, sandboxApiKey, api, advAuthHeaderValue,
         } = this.state;
-        if ((api.advertiseInfo && api.advertiseInfo.advertised) || (api.gatewayVendor && api.gatewayVendor !== 'wso2')) {
+        if (api.advertiseInfo && api.advertiseInfo.advertised) {
+            return advAuthHeaderValue;
+        }
+        if (api.gatewayVendor && api.gatewayVendor !== 'wso2' && securitySchemeType !== 'API-KEY') {
             return advAuthHeaderValue;
         }
         if (securitySchemeType === 'BASIC') {

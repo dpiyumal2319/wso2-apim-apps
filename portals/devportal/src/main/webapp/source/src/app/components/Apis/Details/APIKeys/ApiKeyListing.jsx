@@ -22,6 +22,7 @@ import {
     Box,
     Button,
     Chip,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -53,9 +54,15 @@ import { useParams } from 'react-router-dom';
 import { FormattedMessage, useIntl } from 'react-intl';
 import CONSTANTS from 'AppData/Constants';
 import Application from 'AppData/Application';
+import AuthManager from 'AppData/AuthManager';
+import InlineMessage from 'AppComponents/Shared/InlineMessage';
 import ApiKeyAssociation from './ApiKeyAssociation';
 import ApiKeyGenerate from './ApiKeyGenerate';
 
+/**
+ * Component for listing and managing API keys for a specific API
+ * @returns {React.Component} ApiKeyListing component
+ */
 export default function ApiKeyListing() {
     const params = useParams();
     const apiUUID = params.apiUuid;
@@ -63,6 +70,8 @@ export default function ApiKeyListing() {
 
     // API keys state for dynamic updates
     const [apiKeys, setApiKeys] = React.useState(null);
+    const [page, setPage] = React.useState(0);
+    const [rowsPerPage, setRowsPerPage] = React.useState(5);
 
     // Revoke key dialog state
     const [revokeConfirmOpen, setRevokeConfirmOpen] = React.useState(false);
@@ -70,6 +79,7 @@ export default function ApiKeyListing() {
     const [revokeErrorOpen, setRevokeErrorOpen] = React.useState(false);
     const [revokeErrorMessage, setRevokeErrorMessage] = React.useState('');
     const [selectedKeyForRevoke, setSelectedKeyForRevoke] = React.useState(null);
+    const [isRevoking, setIsRevoking] = React.useState(false);
 
     // Subscribed applications state
     const [subscribedApps, setSubscribedApps] = React.useState([]);
@@ -190,6 +200,9 @@ export default function ApiKeyListing() {
     const {
         handleOpenAssociationModal,
         handleRemoveAssociation,
+        isAssociating,
+        isDissociating,
+        selectedKeyForDissociate,
         renderDialogs: renderAssociationDialogs,
     } = ApiKeyAssociation(apiUUID, refreshApiKeys, subscribedApps);
 
@@ -227,9 +240,11 @@ export default function ApiKeyListing() {
 
     const handleConfirmRevoke = () => {
         setRevokeConfirmOpen(false);
+        setIsRevoking(true);
         const restApi = new API();
         restApi.revokeAPIBoundAPIKey(apiUUID, selectedKeyForRevoke.keyUUID)
             .then(() => {
+                setIsRevoking(false);
                 setRevokeSuccessOpen(true);
                 // Refresh the API keys list
                 return restApi.getApiApiKeys(apiUUID);
@@ -242,6 +257,7 @@ export default function ApiKeyListing() {
                 if (process.env.NODE_ENV !== 'production') {
                     console.log(error);
                 }
+                setIsRevoking(false);
                 setRevokeErrorMessage(
                     error.message || intl.formatMessage({
                         id: 'Apis.Details.APIKeys.ApiKeyListing.error.revokeFailed',
@@ -271,6 +287,24 @@ export default function ApiKeyListing() {
         {
             name: 'keyName',
             label: intl.formatMessage({ id: 'Apis.Details.APIKeys.ApiKeyListing.column.apiKey', defaultMessage: 'API Key' }),
+            options: {
+                customBodyRenderLite: (dataIndex) => {
+                    const keyData = apiKeys[dataIndex];
+                    const { keyName } = keyData;
+                    return (
+                        <Tooltip title={keyName || ''} placement='top'>
+                            <Box sx={{ maxWidth: '200px' }}>
+                                <Typography
+                                    variant='body2'
+                                    sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                >
+                                    {keyName || '-'}
+                                </Typography>
+                            </Box>
+                        </Tooltip>
+                    );
+                },
+            },
         },
         {
             name: 'associatedApp',
@@ -331,7 +365,13 @@ export default function ApiKeyListing() {
                     try {
                         const issuedDate = new Date(issuedOn);
                         const expiresDate = new Date(issuedDate.getTime() + (keyValidityPeriod * 1000));
-                        return expiresDate.toLocaleString();
+                        const dateOnly = expiresDate.toLocaleDateString('en-CA');
+                        const fullDateTime = expiresDate.toLocaleString();
+                        return (
+                            <Tooltip title={fullDateTime} placement='top'>
+                                <Typography variant='body2'>{dateOnly}</Typography>
+                            </Tooltip>
+                        );
                     } catch (error) {
                         return keyValidityPeriod;
                     }
@@ -352,10 +392,16 @@ export default function ApiKeyListing() {
                             </Typography>
                         );
                     }
-                    if (!lastUsed) return '-';
+                    if (lastUsed == null) {
+                        return (
+                            <Typography variant='body2' color='text.secondary'>
+                                <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.table.notUsed' defaultMessage='Not Used' />
+                            </Typography>
+                        );
+                    }
                     try {
                         const date = new Date(lastUsed);
-                        const dateOnly = date.toLocaleDateString('en-CA'); // YYYY-MM-DD format in local timezone
+                        const dateOnly = date.toLocaleDateString('en-CA');
                         const fullDateTime = date.toLocaleString();
                         return (
                             <Tooltip title={fullDateTime} placement='top'>
@@ -396,6 +442,7 @@ export default function ApiKeyListing() {
                                     size='small'
                                     startIcon={<Link />}
                                     onClick={() => handleOpenAssociationModal(keyData)}
+                                    disabled={isAssociating}
                                 >
                                     <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.button.associate' defaultMessage='Associate' />
                                 </Button>
@@ -404,13 +451,23 @@ export default function ApiKeyListing() {
                                     variant='outlined'
                                     size='small'
                                     color='error'
-                                    startIcon={<LinkOff />}
+                                    startIcon={isDissociating && selectedKeyForDissociate?.keyUUID === keyData.keyUUID
+                                        ? <CircularProgress size={16} />
+                                        : <LinkOff />}
                                     onClick={() => handleRemoveAssociation(keyData)}
+                                    disabled={isDissociating && selectedKeyForDissociate?.keyUUID === keyData.keyUUID}
                                 >
-                                    <FormattedMessage
-                                        id='Apis.Details.APIKeys.ApiKeyListing.button.removeAssociation'
-                                        defaultMessage='Remove Association'
-                                    />
+                                    {isDissociating && selectedKeyForDissociate?.keyUUID === keyData.keyUUID ? (
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.removingAssociation'
+                                            defaultMessage='Removing...'
+                                        />
+                                    ) : (
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.removeAssociation'
+                                            defaultMessage='Remove Association'
+                                        />
+                                    )}
                                 </Button>
                             )}
                             <Button
@@ -419,8 +476,19 @@ export default function ApiKeyListing() {
                                 color='error'
                                 startIcon={<Block />}
                                 onClick={() => handleRevokeKey(keyData)}
+                                disabled={isRevoking && selectedKeyForRevoke?.keyUUID === keyData.keyUUID}
                             >
-                                <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.button.revoke' defaultMessage='Revoke' />
+                                {isRevoking && selectedKeyForRevoke?.keyUUID === keyData.keyUUID ? (
+                                    <>
+                                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                                        <FormattedMessage
+                                            id='Apis.Details.APIKeys.ApiKeyListing.button.revoking'
+                                            defaultMessage='Revoking...'
+                                        />
+                                    </>
+                                ) : (
+                                    <FormattedMessage id='Apis.Details.APIKeys.ApiKeyListing.button.revoke' defaultMessage='Revoke' />
+                                )}
                             </Button>
                             {renderRegenerateButton(keyData)}
                         </Stack>
@@ -437,11 +505,39 @@ export default function ApiKeyListing() {
         download: false,
         print: false,
         viewColumns: false,
-        pagination: false,
+        pagination: true,
         sort: false,
         responsive: 'standard',
-        tableBodyMaxHeight: '520px',
+        page,
+        rowsPerPage,
+        rowsPerPageOptions: [5, 10, 25],
+        onChangePage: (currentPage) => setPage(currentPage),
+        onChangeRowsPerPage: (numberOfRows) => {
+            setRowsPerPage(numberOfRows);
+            setPage(0);
+        },
     };
+
+    const user = AuthManager.getUser();
+
+    if (!user) {
+        return (
+            <InlineMessage type='info'>
+                <Typography variant='h5' component='h2'>
+                    <FormattedMessage
+                        id='Apis.Details.APIKeys.ApiKeyListing.sign.in.to.manage'
+                        defaultMessage='Sign In to Manage API Keys'
+                    />
+                </Typography>
+                <Typography variant='body2'>
+                    <FormattedMessage
+                        id='Apis.Details.APIKeys.ApiKeyListing.sign.in.to.manage.msg'
+                        defaultMessage='You need to sign in to view and manage API Keys for this API.'
+                    />
+                </Typography>
+            </InlineMessage>
+        );
+    }
 
     return (
         <Stack spacing={4}>
@@ -462,7 +558,7 @@ export default function ApiKeyListing() {
                         <Typography variant='subtitle1' gutterBottom sx={{ mb: 3 }}>
                             <FormattedMessage
                                 id='Apis.Details.APIKeys.ApiKeyListing.emptyState.description'
-                                defaultMessage='Get started by generating your first API key to access this API from your applications.'
+                                defaultMessage='Get started by generating your first API Key to access this API from your applications.'
                             />
                         </Typography>
                         <Button
@@ -503,7 +599,7 @@ export default function ApiKeyListing() {
                                 <Typography variant='body2' color='text.secondary' sx={{ mt: 0.5 }}>
                                     <FormattedMessage
                                         id='Apis.Details.APIKeys.ApiKeyListing.section.description'
-                                        defaultMessage='View and manage your current API keys for this API across all applications.'
+                                        defaultMessage='View and manage your current API Keys for this API across all applications.'
                                     />
                                 </Typography>
                             </Box>
@@ -870,6 +966,7 @@ export default function ApiKeyListing() {
                                 onClick={handleGenerateKey}
                                 variant='contained'
                                 disabled={!displayName.trim() || isGenerating}
+                                startIcon={isGenerating ? <CircularProgress size={16} color='inherit' /> : null}
                             >
                                 {isGenerating
                                     ? (

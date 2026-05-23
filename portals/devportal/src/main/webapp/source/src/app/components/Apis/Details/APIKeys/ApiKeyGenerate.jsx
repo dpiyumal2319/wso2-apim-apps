@@ -19,9 +19,10 @@
 import React from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import {
-    Alert,
+    Alert as MuiAlert,
     Box,
     Button,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -36,6 +37,7 @@ import {
 } from '@mui/material';
 import { ContentCopy, Refresh } from '@mui/icons-material';
 import API from 'AppData/api';
+import Alert from 'AppComponents/Shared/Alert';
 
 /**
  * Custom hook for managing API key generation and regeneration operations
@@ -63,6 +65,8 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
     // Regenerate modal state
     const [regenerateModalOpen, setRegenerateModalOpen] = React.useState(false);
     const [regeneratedApiKey, setRegeneratedApiKey] = React.useState(null);
+    const [isRegenerating, setIsRegenerating] = React.useState(false);
+    const [regeneratingKeyUUID, setRegeneratingKeyUUID] = React.useState(null);
 
     // Validity period options
     const validityOptions = [
@@ -147,7 +151,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
 
     const handleGenerateKey = () => {
         if (!displayName.trim()) {
-            alert(intl.formatMessage({
+            Alert.error(intl.formatMessage({
                 id: 'Apis.Details.APIKeys.ApiKeyGenerate.alert.enterName',
                 defaultMessage: 'Please enter a name for the API key.',
             }));
@@ -156,7 +160,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
         if (restrictionType !== 'none' && !restrictionValue.trim()) {
             const restrictionOption = restrictionOptions.find((option) => option.value === restrictionType);
             const restrictionLabel = restrictionOption ? restrictionOption.label : '';
-            alert(intl.formatMessage(
+            Alert.error(intl.formatMessage(
                 {
                     id: 'Apis.Details.APIKeys.ApiKeyGenerate.alert.enterRestrictionValue',
                     defaultMessage: 'Please enter a {restrictionLabel} value.',
@@ -168,7 +172,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
         if (validityPeriod === 'custom' && !customValidityDays) {
             const customDays = Number(customValidityDays);
             if (!Number.isInteger(customDays) || customDays <= 0) {
-                alert(intl.formatMessage({
+                Alert.error(intl.formatMessage({
                     id: 'Apis.Details.APIKeys.ApiKeyGenerate.alert.invalidCustomDays',
                     defaultMessage: 'Please enter a valid positive number of days for custom validity period.',
                 }));
@@ -232,6 +236,11 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
 
     // Regenerate handlers
     const handleRegenerateKey = (keyData) => {
+        if (isRegenerating) {
+            return;
+        }
+        setIsRegenerating(true);
+        setRegeneratingKeyUUID(keyData.keyUUID);
         const restApi = new API();
         restApi.regenerateApiApiKey(apiUUID, keyData.keyUUID)
             .then((response) => {
@@ -242,15 +251,19 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
                 };
                 setRegeneratedApiKey(regeneratedKey);
                 setRegenerateModalOpen(true);
+                setIsRegenerating(false);
+                setRegeneratingKeyUUID(null);
                 setTimeout(() => {
                     refreshApiKeys();
                 }, 500);
             })
             .catch((error) => {
                 console.error('Error regenerating key:', error);
-                alert(intl.formatMessage({
+                setIsRegenerating(false);
+                setRegeneratingKeyUUID(null);
+                Alert.error(intl.formatMessage({
                     id: 'Apis.Details.APIKeys.ApiKeyGenerate.alert.regenerateFailed',
-                    defaultMessage: 'Failed to regenerate API key. Please try again.',
+                    defaultMessage: 'Failed to regenerate API Key. Please try again.',
                 }));
             });
     };
@@ -262,16 +275,24 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
     };
 
     // Render regenerate button
-    const renderRegenerateButton = (keyData) => (
-        <Button
-            variant='outlined'
-            size='small'
-            startIcon={<Refresh />}
-            onClick={() => handleRegenerateKey(keyData)}
-        >
-            <FormattedMessage id='Apis.Details.APIKeys.ApiKeyGenerate.button.regenerate' defaultMessage='Regenerate' />
-        </Button>
-    );
+    const renderRegenerateButton = (keyData) => {
+        const isThisKeyRegenerating = isRegenerating && regeneratingKeyUUID === keyData.keyUUID;
+        return (
+            <Button
+                variant='outlined'
+                size='small'
+                startIcon={isThisKeyRegenerating ? <CircularProgress size={16} /> : <Refresh />}
+                onClick={() => handleRegenerateKey(keyData)}
+                disabled={isRegenerating}
+            >
+                {isThisKeyRegenerating ? (
+                    <FormattedMessage id='Apis.Details.APIKeys.ApiKeyGenerate.button.regenerating' defaultMessage='Regenerating...' />
+                ) : (
+                    <FormattedMessage id='Apis.Details.APIKeys.ApiKeyGenerate.button.regenerate' defaultMessage='Regenerate' />
+                )}
+            </Button>
+        );
+    };
 
     // Render dialogs
     const renderDialogs = () => (
@@ -293,7 +314,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
                     <Stack spacing={2} sx={{ pt: 1 }}>
                         {regeneratedApiKey && (
                             <>
-                                <Alert severity='warning' sx={{ mb: 0.5 }}>
+                                <MuiAlert severity='warning' sx={{ mb: 0.5 }}>
                                     <Typography variant='h6' component='h3' sx={{ mb: 0.5, fontSize: '0.95rem' }}>
                                         <FormattedMessage
                                             id='Apis.Details.APIKeys.ApiKeyGenerate.copyAlert.title'
@@ -311,7 +332,7 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
                                             }
                                         />
                                     </Typography>
-                                </Alert>
+                                </MuiAlert>
                                 <Box sx={{ mt: 1 }}>
                                     <Typography
                                         variant='subtitle2'
@@ -437,6 +458,8 @@ export default function ApiKeyGenerate(apiUUID, refreshApiKeys) {
         setRestrictionValue,
         generationModalOpen,
         isGenerating,
+        isRegenerating,
+        regeneratingKeyUUID,
         apikey,
         showToken,
         validityOptions,
